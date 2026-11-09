@@ -1,0 +1,607 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-0000-4000-8000-000000000003",
+    "name": "IISIK - GraphQL Dynamic Pricing (ЛР3)",
+    "description": "Лабораторная работа 3: базовая структура системы, внутренние сервисы и GraphQL Query API.\n\nДемонстрирует:\n- получение объекта по идентификатору;\n- получение списков объектов;\n- получение связанных данных (вложенный товар в рекомендации — gateway обращается к product-сервису через mock-клиент);\n- агрегирующие Query;\n- базовую обработку ошибок (NOT_FOUND, INVALID_ID).\n\nПодготовка к прогону:\n- mock-режим (заглушки вместо gRPC/HTTP): `python scripts/run_all.py --mode mock`\n- http-режим: `python scripts/seed_all.py`, затем `python scripts/run_all.py --mode http`\n\nВсе запросы — только на чтение (Query), порядок выполнения не важен.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Query — объект по идентификатору",
+      "item": [
+        {
+          "name": "product по id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "const p = body.data.product;",
+                  "pm.test('id совпадает', () => pm.expect(p.id).to.eql(pm.collectionVariables.get('product1_id')));",
+                  "pm.test('Смартфон X200', () => pm.expect(p.name).to.eql('Смартфон X200'));",
+                  "pm.test('категория Электроника', () => pm.expect(p.category).to.eql('Электроника'));",
+                  "pm.test('текущая цена 1299', () => pm.expect(p.currentPrice).to.eql(1299));",
+                  "pm.test('себестоимость 60% = 779.4', () => pm.expect(p.costPrice).to.eql(779.4));",
+                  "pm.test('товар активен', () => pm.expect(p.isActive).to.be.true);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { product(id: \"{{product1_id}}\") { id name description category currentPrice costPrice isActive } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "priceRecommendation по id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "const r = body.data.priceRecommendation;",
+                  "pm.test('id совпадает', () => pm.expect(r.id).to.eql(pm.collectionVariables.get('rec1_id')));",
+                  "pm.test('статус NEW', () => pm.expect(r.status).to.eql('NEW'));",
+                  "pm.test('текущая цена 1299', () => pm.expect(r.currentPrice).to.eql(1299));",
+                  "pm.test('рекомендуемая цена 1249', () => pm.expect(r.recommendedPrice).to.eql(1249));",
+                  "pm.test('обоснование заполнено', () => pm.expect(r.rationale).to.be.a('string').and.to.have.lengthOf.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { priceRecommendation(id: \"{{rec1_id}}\") { id productId currentPrice recommendedPrice status rationale createdAt } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Query — списки объектов",
+      "item": [
+        {
+          "name": "products — весь каталог",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "const items = body.data.products;",
+                  "pm.test('5 товаров (вкл. неактивный)', () => pm.expect(items).to.have.length(5));",
+                  "pm.test('сортировка по имени ASC', () => {",
+                  "    const names = items.map(p => p.name);",
+                  "    pm.expect(names).to.eql([...names].sort((a, b) => a.localeCompare(b)));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { products { id name category currentPrice isActive } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "products по категории",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "const items = body.data.products;",
+                  "pm.test('3 товара категории Электроника', () => pm.expect(items).to.have.length(3));",
+                  "pm.test('все из категории Электроника', () => {",
+                  "    items.forEach(item => pm.expect(item.category).to.eql('Электроника'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { products(category: \"Электроника\") { id name category currentPrice } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "demandForecasts — все и по товару",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('5 прогнозов суммарно', () => pm.expect(body.data.demandForecasts).to.have.length(5));",
+                  "const byProduct = body.data.byProduct;",
+                  "pm.test('2 прогноза по Смартфону X200', () => pm.expect(byProduct).to.have.length(2));",
+                  "pm.test('все прогнозы по нужному товару', () => {",
+                  "    byProduct.forEach(f => pm.expect(f.productId).to.eql(pm.collectionVariables.get('product1_id')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { demandForecasts { id forecastPeriod predictedDemand confidence } byProduct: demandForecasts(productId: \"{{product1_id}}\") { id productId forecastPeriod predictedDemand } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "competitorStrategies по товару",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "const items = body.data.competitorStrategies;",
+                  "pm.test('2 стратегии по Смартфону X200', () => pm.expect(items).to.have.length(2));",
+                  "pm.test('описание включает конкурента и цену', () => {",
+                  "    items.forEach(s => {",
+                  "        pm.expect(s.description).to.include('Конкурент');",
+                  "        pm.expect(s.competitorPrice).to.be.a('number');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { competitorStrategies(productId: \"{{product1_id}}\") { id strategyType competitorPrice description createdAt } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "analyticsResults по типу анализа",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('3 результата суммарно', () => pm.expect(body.data.analyticsResults).to.have.length(3));",
+                  "const typed = body.data.typed;",
+                  "pm.test('1 результат FORECAST_VS_FACT', () => pm.expect(typed).to.have.length(1));",
+                  "pm.test('метрики отформатированы', () => pm.expect(typed[0].result).to.include('predicted_demand=42.50'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { analyticsResults { id analysisType result } typed: analyticsResults(analysisType: \"FORECAST_VS_FACT\") { id analysisType result } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Query — связанные данные (mock-клиенты)",
+      "description": "Вложенное поле product в PriceRecommendation gateway получает через клиент product-сервиса (в ЛР3 — mock-заглушку без сетевого взаимодействия).",
+      "item": [
+        {
+          "name": "рекомендация + вложенный товар (cross-service)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "const r = body.data.priceRecommendation;",
+                  "pm.test('вложенный товар разрешён', () => pm.expect(r.product).to.not.be.null);",
+                  "pm.test('товар = Смартфон X200', () => pm.expect(r.product.name).to.eql('Смартфон X200'));",
+                  "pm.test('id товара совпадает с product1_id', () => {",
+                  "    pm.expect(r.product.id).to.eql(pm.collectionVariables.get('product1_id'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { priceRecommendation(id: \"{{rec1_id}}\") { id status recommendedPrice product { id name category currentPrice isActive } } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "notifications непрочитанные",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "const items = body.data.notifications;",
+                  "pm.test('2 непрочитанных', () => pm.expect(items).to.have.length(2));",
+                  "pm.test('все isRead = false', () => {",
+                  "    items.forEach(item => pm.expect(item.isRead).to.be.false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { notifications(isRead: false) { id message notificationType isRead createdAt } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "notifications по типу",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "const items = body.data.notifications;",
+                  "pm.test('1 уведомление FORECAST_READY', () => pm.expect(items).to.have.length(1));",
+                  "pm.test('тип FORECAST_READY', () => pm.expect(items[0].notificationType).to.eql('FORECAST_READY'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { notifications(notificationType: \"FORECAST_READY\") { id notificationType message isRead } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "priceRecommendations по статусу NEW",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "const items = body.data.priceRecommendations;",
+                  "pm.test('2 рекомендации в статусе NEW', () => pm.expect(items).to.have.length(2));",
+                  "pm.test('все в статусе NEW', () => {",
+                  "    items.forEach(item => pm.expect(item.status).to.eql('NEW'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { priceRecommendations(status: NEW) { id status recommendedPrice createdAt } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Query — агрегирующие операции",
+      "item": [
+        {
+          "name": "salesSummary по товару",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "const s = body.data.salesSummary;",
+                  "pm.test('6 записей продаж', () => pm.expect(s.ordersCount).to.eql(6));",
+                  "pm.test('39 проданных единиц', () => pm.expect(s.totalQuantity).to.eql(39));",
+                  "pm.test('средняя цена 1262.33', () => pm.expect(s.avgUnitPrice).to.eql(1262.33));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { salesSummary(productId: \"{{product1_id}}\") { productId ordersCount totalQuantity avgUnitPrice } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "unreadNotificationsCount",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('2 непрочитанных', () => pm.expect(body.data.unreadNotificationsCount).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { unreadNotificationsCount }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "recommendationsSummary",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('итоги 4/2/1/1', () => {",
+                  "    pm.expect(body.data.recommendationsSummary).to.eql({ total: 4, newCount: 2, acceptedCount: 1, rejectedCount: 1 });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { recommendationsSummary { total newCount acceptedCount rejectedCount } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Обработка ошибок",
+      "item": [
+        {
+          "name": "product — некорректный UUID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK (ошибка в теле GraphQL)', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "const err = body.errors && body.errors[0];",
+                  "pm.test('есть ошибка', () => pm.expect(err).to.not.be.undefined);",
+                  "pm.test('код INVALID_ID', () => pm.expect(err.extensions.code).to.eql('INVALID_ID'));",
+                  "pm.test('product = null', () => pm.expect(body.data.product).to.be.null);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { product(id: \"не-uuid\") { id name } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "product — не найден",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK (ошибка в теле GraphQL)', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "const err = body.errors && body.errors[0];",
+                  "pm.test('есть ошибка', () => pm.expect(err).to.not.be.undefined);",
+                  "pm.test('код NOT_FOUND', () => pm.expect(err.extensions.code).to.eql('NOT_FOUND'));",
+                  "pm.test('упоминание id в сообщении', () => pm.expect(err.message).to.include('20000000-0000-4000-8000-000000000099'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { product(id: \"20000000-0000-4000-8000-000000000099\") { id name } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "priceRecommendation — не найдена",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK (ошибка в теле GraphQL)', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "const err = body.errors && body.errors[0];",
+                  "pm.test('есть ошибка', () => pm.expect(err).to.not.be.undefined);",
+                  "pm.test('код NOT_FOUND', () => pm.expect(err.extensions.code).to.eql('NOT_FOUND'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { priceRecommendation(id: \"70000000-0000-4000-8000-000000000099\") { id status } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "salesSummary — некорректный UUID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK (ошибка в теле GraphQL)', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "const err = body.errors && body.errors[0];",
+                  "pm.test('есть ошибка', () => pm.expect(err).to.not.be.undefined);",
+                  "pm.test('код INVALID_ID', () => pm.expect(err.extensions.code).to.eql('INVALID_ID'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { salesSummary(productId: \"abc\") { ordersCount } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000/graphql" },
+    { "key": "product1_id", "value": "20000000-0000-4000-8000-000000000001" },
+    { "key": "product4_id", "value": "20000000-0000-4000-8000-000000000004" },
+    { "key": "rec1_id", "value": "70000000-0000-4000-8000-000000000001" }
+  ]
+}
