@@ -32,3 +32,14 @@ class ProductUpdateDTO(BaseModel):
     base_price: Decimal | None = None
     description: str | None = None
     is_active: bool | None = None
+
+
+class PriceHistoryDTO(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    product_id: str
+    old_price: Decimal
+    new_price: Decimal
+    currency: str
+    changed_at: datetime

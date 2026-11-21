@@ -77,6 +77,18 @@ class SalesRecordData(BaseModel):
     sold_at: datetime
 
 
+class CompetitorPriceData(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    product_id: str
+    competitor_name: str
+    price: Decimal
+    currency: str
+    source: str
+    observed_at: datetime
+
+
 class SalesSummaryData(BaseModel):
     product_id: str
     records: int
@@ -115,3 +127,15 @@ class NotificationData(BaseModel):
     is_read: bool
     created_at: datetime
     sent_at: datetime | None
+
+
+class AuthUserData(BaseModel):
+    id: str
+    email: str
+    full_name: str
+    roles: list[str]
+
+
+class AuthPayloadData(BaseModel):
+    token: str
+    user: AuthUserData

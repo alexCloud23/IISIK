@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     port: int = 8000
     client_mode: str = "mock"
 
+    identity_service_url: str = "http://127.0.0.1:8001"
     product_service_url: str = "http://127.0.0.1:8002"
     market_data_service_url: str = "http://127.0.0.1:8003"
     forecast_service_url: str = "http://127.0.0.1:8004"

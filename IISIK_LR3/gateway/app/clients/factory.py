@@ -7,7 +7,7 @@ import httpx
 
 from fixtures.analytics import ANALYTICS_RESULTS
 from fixtures.forecast import FORECASTS
-from fixtures.market_data import SALES
+from fixtures.market_data import COMPETITOR_PRICES, SALES
 from fixtures.notification import NOTIFICATIONS
 from fixtures.pricing import RECOMMENDATIONS
 from fixtures.product import PRODUCTS
@@ -16,6 +16,7 @@ from fixtures.strategy import STRATEGIES
 from ..config import Settings
 from ..dto import (
     AnalyticsResultData,
+    CompetitorPriceData,
     ForecastData,
     NotificationData,
     ProductData,
@@ -25,6 +26,7 @@ from ..dto import (
 )
 from .base import (
     AnalyticsClient,
+    AuthClient,
     ForecastClient,
     MarketDataClient,
     NotificationClient,
@@ -34,6 +36,7 @@ from .base import (
 )
 from .http import (
     HttpAnalyticsClient,
+    HttpAuthClient,
     HttpForecastClient,
     HttpMarketDataClient,
     HttpNotificationClient,
@@ -43,6 +46,7 @@ from .http import (
 )
 from .mock import (
     MockAnalyticsClient,
+    MockAuthClient,
     MockForecastClient,
     MockMarketDataClient,
     MockNotificationClient,
@@ -61,6 +65,7 @@ class ClientBundle:
     analytics: AnalyticsClient
     notification: NotificationClient
     market_data: MarketDataClient
+    auth: AuthClient
 
     def close(self) -> None:
         for client in (
@@ -71,6 +76,7 @@ class ClientBundle:
             self.analytics,
             self.notification,
             self.market_data,
+            self.auth,
         ):
             close = getattr(client, "close", None)
             if callable(close):
@@ -98,8 +104,10 @@ def build_mock_bundle() -> ClientBundle:
             [NotificationData.model_validate(item) for item in NOTIFICATIONS]
         ),
         market_data=MockMarketDataClient(
-            [SalesRecordData.model_validate(item) for item in SALES]
+            [SalesRecordData.model_validate(item) for item in SALES],
+            [CompetitorPriceData.model_validate(item) for item in COMPETITOR_PRICES],
         ),
+        auth=MockAuthClient(),
     )
 
 
@@ -140,6 +148,9 @@ def build_http_bundle(
             settings.market_data_service_url,
             transport=transport("market_data"),
             **common,
+        ),
+        auth=HttpAuthClient(
+            settings.identity_service_url, transport=transport("auth"), **common
         ),
     )
 

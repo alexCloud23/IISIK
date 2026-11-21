@@ -14,7 +14,7 @@ from . import service
 from .config import settings
 from .db import engine, get_session
 from .models import Base
-from .schemas import ProductCreateDTO, ProductDTO, ProductUpdateDTO
+from .schemas import PriceHistoryDTO, ProductCreateDTO, ProductDTO, ProductUpdateDTO
 
 
 @asynccontextmanager
@@ -51,6 +51,7 @@ def root() -> dict[str, object]:
             "/products/{product_id}",
             "POST /products",
             "PATCH /products/{product_id}",
+            "/products/{product_id}/price-history",
         ],
     }
 
@@ -92,6 +93,13 @@ def update_product(
     session: Session = Depends(get_session),
 ) -> ProductDTO:
     return service.update_product(session, product_id, data)
+
+
+@app.get("/products/{product_id}/price-history", response_model=list[PriceHistoryDTO])
+def get_price_history(
+    product_id: str, session: Session = Depends(get_session)
+) -> list[PriceHistoryDTO]:
+    return service.list_price_history(session, product_id)
 
 
 @app.get("/products/{product_id}", response_model=ProductDTO)

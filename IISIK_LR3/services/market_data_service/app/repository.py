@@ -36,7 +36,11 @@ def sales_summary(session: Session, product_id: str) -> tuple[int, int, Decimal]
     stmt = select(
         func.count(SalesRecord.id),
         func.coalesce(func.sum(SalesRecord.quantity), 0),
-        func.coalesce(func.avg(SalesRecord.unit_price), 0),
+        func.coalesce(func.sum(SalesRecord.quantity * SalesRecord.unit_price), 0),
     ).where(SalesRecord.product_id == product_id)
-    records, total_quantity, average_price = session.execute(stmt).one()
-    return int(records), int(total_quantity), Decimal(str(average_price))
+    records, total_quantity, revenue = session.execute(stmt).one()
+    total_quantity = int(total_quantity)
+    average_price = (
+        Decimal(str(revenue)) / total_quantity if total_quantity else Decimal("0")
+    )
+    return int(records), total_quantity, average_price

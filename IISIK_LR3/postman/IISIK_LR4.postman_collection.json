@@ -7,6 +7,54 @@
   },
   "item": [
     {
+      "name": "0. Auth",
+      "item": [
+        {
+          "name": "login (admin) — сохраняет токен",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('получен токен', () => pm.expect(body.data.login.token).to.be.a('string').and.not.empty);",
+                  "pm.test('роль ADMIN', () => pm.expect(body.data.login.user.roles).to.include('ADMIN'));",
+                  "pm.collectionVariables.set('token', body.data.login.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { login(email: \"admin@example.com\", password: \"admin\") { token user { email fullName roles } } }"
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "1. Queries — фильтрация",
       "item": [
         {
@@ -31,14 +79,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { products(category: \"Электроника\") { id name category currentPrice isActive } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -61,14 +119,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { products(search: \"pro\") { id name } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -93,14 +161,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { priceRecommendations(status: NEW) { id status recommendedPrice } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -125,14 +203,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { notifications(isRead: false) { id isRead notificationType } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -155,14 +243,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { notifications(notificationType: \"FORECAST_READY\") { id notificationType } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         }
       ]
@@ -191,14 +289,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { products(category: \"Электроника\", orderBy: CURRENT_PRICE, orderDirection: DESC) { name currentPrice } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -223,14 +331,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { priceRecommendations(orderBy: RECOMMENDED_PRICE, orderDirection: ASC) { id recommendedPrice } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         }
       ]
@@ -252,21 +370,31 @@
                   "const s = body.data.salesSummary;",
                   "pm.test('6 заказов', () => pm.expect(s.ordersCount).to.eql(6));",
                   "pm.test('39 единиц', () => pm.expect(s.totalQuantity).to.eql(39));",
-                  "pm.test('средняя цена 1262.33', () => pm.expect(s.avgUnitPrice).to.eql(1262.33));"
+                  "pm.test('средняя цена 1255.67', () => pm.expect(s.avgUnitPrice).to.eql(1255.67));"
                 ]
               }
             }
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { salesSummary(productId: \"{{product1_id}}\") { productId ordersCount totalQuantity avgUnitPrice } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -287,14 +415,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { unreadNotificationsCount }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -318,14 +456,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { recommendationsSummary { total newCount acceptedCount rejectedCount } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         }
       ]
@@ -355,14 +503,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "mutation { createProduct(input: { name: \"Тестовый товар {{$timestamp}}\", category: \"Электроника\", price: 123.45 }) { id name currentPrice isActive } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -383,14 +541,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "mutation { updateProduct(id: \"{{created_product_id}}\", input: { price: 199.99 }) { id currentPrice } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -411,14 +579,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "mutation { updateProduct(id: \"{{created_product_id}}\", input: { isActive: false }) { id isActive } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -440,14 +618,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "mutation { createProduct(input: { name: \"{{created_product_name}}\", category: \"Электроника\", price: 10 }) { id } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         }
       ]
@@ -476,14 +664,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "mutation { generatePriceRecommendation(productId: \"{{product1_id}}\") { id status recommendedPrice rationale } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -504,14 +702,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "mutation { decideRecommendation(id: \"{{rec1_id}}\", decision: ACCEPTED) { id status } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -532,14 +740,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "mutation { decideRecommendation(id: \"{{rec1_id}}\", decision: REJECTED) { id status } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -560,14 +778,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "mutation { decideRecommendation(id: \"{{rec3_id}}\", decision: REJECTED) { id status } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         }
       ]
@@ -593,14 +821,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "mutation { markNotificationRead(id: \"{{notif1_id}}\") { id isRead } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -621,14 +859,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "mutation { markAllNotificationsRead }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -649,14 +897,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { unreadNotificationsCount }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         }
       ]
@@ -683,14 +941,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { product(id: \"не-uuid\") { id name } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -711,14 +979,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { product(id: \"20000000-0000-4000-8000-000000000009\") { id name } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -739,14 +1017,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "mutation { createProduct(input: { name: \"Дешёвый\", category: \"Прочее\", price: 0 }) { id } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -768,14 +1056,24 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "mutation { generatePriceRecommendation(productId: \"{{product5_id}}\") { id } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         },
         {
@@ -796,28 +1094,79 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "graphql",
               "graphql": {
                 "query": "query { salesSummary(productId: \"не-uuid\") { ordersCount } }"
               }
             },
-            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+            "url": {
+              "raw": "{{base_url}}",
+              "host": [
+                "{{base_url}}"
+              ]
+            }
           }
         }
       ]
     }
   ],
   "variable": [
-    { "key": "base_url", "value": "http://127.0.0.1:8000/graphql" },
-    { "key": "product1_id", "value": "20000000-0000-4000-8000-000000000001" },
-    { "key": "product4_id", "value": "20000000-0000-4000-8000-000000000004" },
-    { "key": "product5_id", "value": "20000000-0000-4000-8000-000000000005" },
-    { "key": "rec1_id", "value": "70000000-0000-4000-8000-000000000001" },
-    { "key": "rec3_id", "value": "70000000-0000-4000-8000-000000000003" },
-    { "key": "notif1_id", "value": "90000000-0000-4000-8000-000000000001" },
-    { "key": "created_product_id", "value": "" },
-    { "key": "created_product_name", "value": "" }
-  ]
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/graphql"
+    },
+    {
+      "key": "product1_id",
+      "value": "20000000-0000-4000-8000-000000000001"
+    },
+    {
+      "key": "product4_id",
+      "value": "20000000-0000-4000-8000-000000000004"
+    },
+    {
+      "key": "product5_id",
+      "value": "20000000-0000-4000-8000-000000000005"
+    },
+    {
+      "key": "rec1_id",
+      "value": "70000000-0000-4000-8000-000000000001"
+    },
+    {
+      "key": "rec3_id",
+      "value": "70000000-0000-4000-8000-000000000003"
+    },
+    {
+      "key": "notif1_id",
+      "value": "90000000-0000-4000-8000-000000000001"
+    },
+    {
+      "key": "created_product_id",
+      "value": ""
+    },
+    {
+      "key": "created_product_name",
+      "value": ""
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  }
 }

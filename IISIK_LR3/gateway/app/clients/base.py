@@ -7,11 +7,15 @@ import strawberry
 
 from ..dto import (
     AnalyticsResultData,
+    AuthPayloadData,
+    AuthUserData,
+    CompetitorPriceData,
     ForecastData,
     NotificationData,
     ProductData,
     RecommendationData,
     RecommendationsSummaryData,
+    SalesRecordData,
     SalesSummaryData,
     StrategyData,
 )
@@ -57,9 +61,25 @@ class ProductClient(Protocol):
 class ForecastClient(Protocol):
     def list_forecasts(self, product_id: str | None = None) -> list[ForecastData]: ...
 
+    def generate_forecast(
+        self,
+        *,
+        product_id: str,
+        period_days: int,
+        sales: list[SalesRecordData],
+    ) -> ForecastData: ...
+
 
 class StrategyClient(Protocol):
     def list_strategies(self, product_id: str | None = None) -> list[StrategyData]: ...
+
+    def analyze_strategy(
+        self,
+        *,
+        product_id: str,
+        current_price: Decimal,
+        competitor_prices: list[CompetitorPriceData],
+    ) -> StrategyData: ...
 
 
 class RecommendationClient(Protocol):
@@ -98,6 +118,18 @@ class AnalyticsClient(Protocol):
         self, analysis_type: str | None = None
     ) -> list[AnalyticsResultData]: ...
 
+    def run_analysis(
+        self,
+        *,
+        product_id: str,
+        analysis_type: str,
+        summary: SalesSummaryData,
+        predicted_demand: Decimal | None = None,
+        current_price: Decimal | None = None,
+        recommended_price: Decimal | None = None,
+        recommendation_id: str | None = None,
+    ) -> AnalyticsResultData: ...
+
 
 class NotificationClient(Protocol):
     def list_notifications(
@@ -123,3 +155,23 @@ class NotificationClient(Protocol):
 
 class MarketDataClient(Protocol):
     def sales_summary(self, product_id: str) -> SalesSummaryData: ...
+
+    def list_sales(
+        self, product_id: str | None = None, limit: int = 1000
+    ) -> list[SalesRecordData]: ...
+
+    def list_competitor_prices(
+        self, product_id: str | None = None, limit: int = 1000
+    ) -> list[CompetitorPriceData]: ...
+
+
+class AuthClient(Protocol):
+    def login(self, email: str, password: str) -> AuthPayloadData: ...
+
+    def register(
+        self, email: str, password: str, full_name: str
+    ) -> AuthPayloadData: ...
+
+    def logout(self, token: str) -> None: ...
+
+    def introspect(self, token: str) -> AuthUserData: ...

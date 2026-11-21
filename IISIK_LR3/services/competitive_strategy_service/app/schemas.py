@@ -17,3 +17,15 @@ class StrategyDTO(BaseModel):
     price_change_percent: Decimal | None
     estimated_probability: Decimal | None
     created_at: datetime
+
+
+class CompetitorPricePointDTO(BaseModel):
+    competitor_name: str
+    price: Decimal
+    observed_at: datetime | None = None
+
+
+class StrategyAnalyzeDTO(BaseModel):
+    product_id: str
+    current_price: Decimal
+    competitor_prices: list[CompetitorPricePointDTO]

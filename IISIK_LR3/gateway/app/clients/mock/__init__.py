@@ -1,3 +1,4 @@
+from .auth import MockAuthClient
 from .clients import (
     MockAnalyticsClient,
     MockForecastClient,
@@ -10,6 +11,7 @@ from .clients import (
 
 __all__ = [
     "MockAnalyticsClient",
+    "MockAuthClient",
     "MockForecastClient",
     "MockMarketDataClient",
     "MockNotificationClient",

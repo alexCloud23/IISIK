@@ -17,7 +17,7 @@ USERS: list[User] = [
     User(
         id=uid(USER, 1),
         email="analyst@example.com",
-        password_hash="sha256:demo-analyst",
+        password_hash="pbkdf2_sha256$100000$demo-salt-analyst$a27815efa3098b2ecbe41aa435c45fd203edc2e7b880f90cf9d4478c6f686b3e",
         full_name="Иванов Иван",
         is_active=True,
         created_at=dt(2026, 1, 15, 9),
@@ -25,7 +25,7 @@ USERS: list[User] = [
     User(
         id=uid(USER, 2),
         email="manager@example.com",
-        password_hash="sha256:demo-manager",
+        password_hash="pbkdf2_sha256$100000$demo-salt-manager$79659adb6aecc681508810f83fe56b672830d22114bf9b0ad570e19c4edbd42d",
         full_name="Петрова Мария",
         is_active=True,
         created_at=dt(2026, 2, 1, 11),
@@ -33,7 +33,7 @@ USERS: list[User] = [
     User(
         id=uid(USER, 3),
         email="admin@example.com",
-        password_hash="sha256:demo-admin",
+        password_hash="pbkdf2_sha256$100000$demo-salt-admin$64aa19cb70b2d849264df6839d862c3d79acda947fffe73ad408dcbff4064fba",
         full_name="Сидоров Алексей",
         is_active=True,
         created_at=dt(2026, 1, 10, 8),

@@ -1,16 +1,23 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
 from fixtures.ids import USER, uid
+from shared.analytics_rules import build_sales_metrics
+from shared.competitive import analyze_competitor_strategy
 from shared.errors import (
     InvalidFilterError,
     InvalidInputError,
     InvalidOperationError,
     NotFoundError,
     parse_uuid,
+)
+from shared.forecasting import (
+    MODEL_VERSION,
+    compute_demand_forecast,
+    validate_period_days,
 )
 from shared.pricing_rules import (
     STRATEGY_TYPES,
@@ -22,6 +29,7 @@ from shared.validation import validate_non_empty, validate_positive_price
 
 from ...dto import (
     AnalyticsResultData,
+    CompetitorPriceData,
     ForecastData,
     NotificationData,
     ProductData,
@@ -180,6 +188,34 @@ class MockForecastClient:
             reverse=True,
         )
 
+    def generate_forecast(
+        self,
+        *,
+        product_id: str,
+        period_days: int,
+        sales: list[SalesRecordData],
+    ) -> ForecastData:
+        normalized = _normalize_id(product_id, "product_id")
+        period_days = validate_period_days(period_days)
+        predicted, confidence = compute_demand_forecast(
+            [(item.sold_at, item.quantity) for item in sales], period_days
+        )
+        period_start = datetime.utcnow().replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        forecast = ForecastData(
+            id=str(uuid4()),
+            product_id=normalized,
+            period_start=period_start,
+            period_end=period_start + timedelta(days=period_days),
+            predicted_demand=predicted,
+            confidence=confidence,
+            model_version=MODEL_VERSION,
+            created_at=_now(),
+        )
+        self._forecasts.append(forecast)
+        return forecast
+
 
 class MockStrategyClient:
     def __init__(self, strategies: list[StrategyData]) -> None:
@@ -197,6 +233,33 @@ class MockStrategyClient:
             key=lambda item: (item.created_at, item.id),
             reverse=True,
         )
+
+    def analyze_strategy(
+        self,
+        *,
+        product_id: str,
+        current_price: Decimal,
+        competitor_prices: list[CompetitorPriceData],
+    ) -> StrategyData:
+        normalized = _normalize_id(product_id, "product_id")
+        strategy_type, reference_price, change_percent, probability = (
+            analyze_competitor_strategy(
+                current_price, [item.price for item in competitor_prices]
+            )
+        )
+        cheapest = min(competitor_prices, key=lambda item: item.price)
+        strategy = StrategyData(
+            id=str(uuid4()),
+            product_id=normalized,
+            competitor_name=cheapest.competitor_name,
+            strategy_type=strategy_type,
+            competitor_price=reference_price,
+            price_change_percent=change_percent,
+            estimated_probability=probability,
+            created_at=_now(),
+        )
+        self._strategies.append(strategy)
+        return strategy
 
 
 class MockRecommendationClient:
@@ -327,6 +390,42 @@ class MockAnalyticsClient:
         ]
         return sorted(items, key=lambda item: item.created_at, reverse=True)
 
+    def run_analysis(
+        self,
+        *,
+        product_id: str,
+        analysis_type: str,
+        summary: SalesSummaryData,
+        predicted_demand: Decimal | None = None,
+        current_price: Decimal | None = None,
+        recommended_price: Decimal | None = None,
+        recommendation_id: str | None = None,
+    ) -> AnalyticsResultData:
+        normalized = _normalize_id(product_id, "product_id")
+        analysis_type = validate_non_empty(analysis_type, "analysis_type")
+        metrics = build_sales_metrics(
+            summary.records,
+            summary.total_quantity,
+            summary.average_unit_price,
+            predicted_demand=predicted_demand,
+            current_price=current_price,
+            recommended_price=recommended_price,
+        )
+        result = AnalyticsResultData(
+            id=str(uuid4()),
+            product_id=normalized,
+            recommendation_id=(
+                _normalize_id(recommendation_id, "recommendation_id")
+                if recommendation_id
+                else None
+            ),
+            analysis_type=analysis_type,
+            metrics=metrics,
+            created_at=_now(),
+        )
+        self._results.append(result)
+        return result
+
 
 class MockNotificationClient:
     def __init__(self, notifications: list[NotificationData]) -> None:
@@ -408,18 +507,47 @@ class MockNotificationClient:
 
 
 class MockMarketDataClient:
-    def __init__(self, sales: list[SalesRecordData]) -> None:
+    def __init__(
+        self,
+        sales: list[SalesRecordData],
+        competitor_prices: list[CompetitorPriceData],
+    ) -> None:
         self._sales = sales
+        self._competitor_prices = competitor_prices
 
     def sales_summary(self, product_id: str) -> SalesSummaryData:
         normalized = _normalize_id(product_id, "product_id")
         records = [item for item in self._sales if item.product_id == normalized]
         total_quantity = sum(item.quantity for item in records)
-        total_price = sum((item.unit_price for item in records), Decimal("0"))
-        average = total_price / len(records) if records else Decimal("0")
+        revenue = sum(
+            (item.unit_price * item.quantity for item in records), Decimal("0")
+        )
+        average = revenue / total_quantity if total_quantity else Decimal("0")
         return SalesSummaryData(
             product_id=normalized,
             records=len(records),
             total_quantity=total_quantity,
             average_unit_price=average,
         )
+
+    def list_sales(
+        self, product_id: str | None = None, limit: int = 1000
+    ) -> list[SalesRecordData]:
+        normalized = _normalize_id(product_id, "product_id") if product_id else None
+        items = [
+            item
+            for item in self._sales
+            if normalized is None or item.product_id == normalized
+        ]
+        return sorted(items, key=lambda item: item.sold_at, reverse=True)[:limit]
+
+    def list_competitor_prices(
+        self, product_id: str | None = None, limit: int = 1000
+    ) -> list[CompetitorPriceData]:
+        normalized = _normalize_id(product_id, "product_id") if product_id else None
+        items = [
+            item
+            for item in self._competitor_prices
+            if normalized is None or item.product_id == normalized
+        ]
+        return sorted(items, key=lambda item: item.observed_at, reverse=True)[:limit]

@@ -25,3 +25,16 @@ class Product(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
     __table_args__ = (Index("ix_products_category", "category"),)
+
+
+class PriceHistory(Base):
+    __tablename__ = "price_history"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    product_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    old_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    new_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    __table_args__ = (Index("ix_price_history_product", "product_id"),)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -104,6 +105,30 @@ class TestProductService:
             service.update_product(
                 product_session, uid(PRODUCT, 999), ProductUpdateDTO(is_active=False)
             )
+
+    def test_update_price_writes_history(self, product_session):
+        from services.product_service.app import service
+        from services.product_service.app.schemas import ProductUpdateDTO
+
+        before = service.list_price_history(product_session, P1)
+        service.update_product(
+            product_session, P1, ProductUpdateDTO(base_price=Decimal("999.99"))
+        )
+        history = service.list_price_history(product_session, P1)
+        assert len(history) == len(before) + 1
+        assert history[0].old_price == Decimal("1299.00")
+        assert history[0].new_price == Decimal("999.99")
+        assert history[0].currency == "BYN"
+
+    def test_update_same_price_skips_history(self, product_session):
+        from services.product_service.app import service
+        from services.product_service.app.schemas import ProductUpdateDTO
+
+        before = service.list_price_history(product_session, P1)
+        service.update_product(
+            product_session, P1, ProductUpdateDTO(base_price=Decimal("1299.00"))
+        )
+        assert len(service.list_price_history(product_session, P1)) == len(before)
 
 
 @pytest.fixture()
@@ -264,3 +289,184 @@ class TestNotificationService:
         items = service.list_notifications(notification_session, None, "FORECAST_READY")
         assert len(items) == 1
         assert items[0].notification_type == "FORECAST_READY"
+
+
+@pytest.fixture()
+def market_session():
+    from services.market_data_service.app import seed as seed_module
+    from services.market_data_service.app.db import SessionLocal
+
+    with SessionLocal() as session:
+        seed_module.seed(session)
+        yield session
+
+
+class TestMarketDataService:
+    def test_sales_summary_weighted_average(self, market_session):
+        from services.market_data_service.app import service
+
+        summary = service.get_sales_summary(market_session, P1)
+        assert summary.records == 6
+        assert summary.total_quantity == 39
+        assert summary.average_unit_price.quantize(Decimal("0.01")) == Decimal(
+            "1255.67"
+        )
+
+
+@pytest.fixture()
+def forecast_session():
+    from services.demand_forecast_service.app import seed as seed_module
+    from services.demand_forecast_service.app.db import SessionLocal
+
+    with SessionLocal() as session:
+        seed_module.seed(session)
+        yield session
+
+
+class TestDemandForecastService:
+    def test_generate_forecast_computes_and_persists(self, forecast_session):
+        from services.demand_forecast_service.app import service
+        from services.demand_forecast_service.app.schemas import (
+            ForecastGenerateDTO,
+            SalePointDTO,
+        )
+
+        dto = service.generate_forecast(
+            forecast_session,
+            ForecastGenerateDTO(
+                product_id=P1,
+                period_days=7,
+                sales=[
+                    SalePointDTO(quantity=10, sold_at=datetime(2026, 10, 1)),
+                    SalePointDTO(quantity=20, sold_at=datetime(2026, 10, 2)),
+                ],
+            ),
+        )
+        assert dto.predicted_demand == Decimal("105.00")
+        assert dto.confidence == Decimal("0.6000")
+        assert dto.model_version == "sma-v1"
+        stored = service.get_forecast(forecast_session, dto.id)
+        assert stored.predicted_demand == Decimal("105.00")
+
+    def test_generate_forecast_without_sales_rejected(self, forecast_session):
+        from services.demand_forecast_service.app import service
+        from services.demand_forecast_service.app.schemas import ForecastGenerateDTO
+        from shared.errors import InvalidInputError
+
+        with pytest.raises(InvalidInputError):
+            service.generate_forecast(
+                forecast_session,
+                ForecastGenerateDTO(product_id=P1, period_days=7, sales=[]),
+            )
+
+    def test_generate_forecast_bad_period_rejected(self, forecast_session):
+        from services.demand_forecast_service.app import service
+        from services.demand_forecast_service.app.schemas import (
+            ForecastGenerateDTO,
+            SalePointDTO,
+        )
+        from shared.errors import InvalidInputError
+
+        with pytest.raises(InvalidInputError):
+            service.generate_forecast(
+                forecast_session,
+                ForecastGenerateDTO(
+                    product_id=P1,
+                    period_days=0,
+                    sales=[SalePointDTO(quantity=1, sold_at=datetime(2026, 10, 1))],
+                ),
+            )
+
+
+@pytest.fixture()
+def strategy_session():
+    from services.competitive_strategy_service.app import seed as seed_module
+    from services.competitive_strategy_service.app.db import SessionLocal
+
+    with SessionLocal() as session:
+        seed_module.seed(session)
+        yield session
+
+
+class TestCompetitiveStrategyService:
+    def test_analyze_strategy_computes_and_persists(self, strategy_session):
+        from services.competitive_strategy_service.app import service
+        from services.competitive_strategy_service.app.schemas import (
+            CompetitorPricePointDTO,
+            StrategyAnalyzeDTO,
+        )
+
+        dto = service.analyze_strategy(
+            strategy_session,
+            StrategyAnalyzeDTO(
+                product_id=P1,
+                current_price=Decimal("1299.00"),
+                competitor_prices=[
+                    CompetitorPricePointDTO(
+                        competitor_name="TechnoMarket", price=Decimal("1249.00")
+                    ),
+                    CompetitorPricePointDTO(
+                        competitor_name="GadgetShop", price=Decimal("1149.00")
+                    ),
+                ],
+            ),
+        )
+        assert dto.strategy_type == "UNDERCUT"
+        assert dto.competitor_price == Decimal("1149.00")
+        assert dto.competitor_name == "GadgetShop"
+        stored = service.list_strategies(strategy_session, P1)
+        assert any(item.id == dto.id for item in stored)
+
+    def test_analyze_strategy_without_competitors_rejected(self, strategy_session):
+        from services.competitive_strategy_service.app import service
+        from services.competitive_strategy_service.app.schemas import (
+            StrategyAnalyzeDTO,
+        )
+        from shared.errors import InvalidInputError
+
+        with pytest.raises(InvalidInputError):
+            service.analyze_strategy(
+                strategy_session,
+                StrategyAnalyzeDTO(
+                    product_id=P1,
+                    current_price=Decimal("1299.00"),
+                    competitor_prices=[],
+                ),
+            )
+
+
+@pytest.fixture()
+def analytics_session():
+    from services.analytics_service.app import seed as seed_module
+    from services.analytics_service.app.db import SessionLocal
+
+    with SessionLocal() as session:
+        seed_module.seed(session)
+        yield session
+
+
+class TestAnalyticsService:
+    def test_run_analysis_computes_and_persists(self, analytics_session):
+        from services.analytics_service.app import service
+        from services.analytics_service.app.schemas import AnalyticsRunDTO
+
+        dto = service.run_analysis(
+            analytics_session,
+            AnalyticsRunDTO(
+                product_id=P1,
+                records=6,
+                total_quantity=39,
+                average_unit_price=Decimal("1255.67"),
+                predicted_demand=Decimal("42.50"),
+                current_price=Decimal("1299.00"),
+                recommended_price=Decimal("1249.00"),
+                recommendation_id=R1,
+            ),
+        )
+        assert dto.analysis_type == "SALES_SUMMARY"
+        assert dto.metrics["total_quantity"] == 39
+        assert dto.metrics["revenue"] == pytest.approx(1255.67 * 39)
+        assert dto.metrics["predicted_demand"] == 42.5
+        assert dto.metrics["price_change_percent"] == pytest.approx(-3.85, abs=0.01)
+        stored = service.list_results(analytics_session, "SALES_SUMMARY")
+        assert any(item.id == dto.id for item in stored)

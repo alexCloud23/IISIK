@@ -1,5 +1,6 @@
 from .clients import (
     HttpAnalyticsClient,
+    HttpAuthClient,
     HttpForecastClient,
     HttpMarketDataClient,
     HttpNotificationClient,
@@ -10,6 +11,7 @@ from .clients import (
 
 __all__ = [
     "HttpAnalyticsClient",
+    "HttpAuthClient",
     "HttpForecastClient",
     "HttpMarketDataClient",
     "HttpNotificationClient",

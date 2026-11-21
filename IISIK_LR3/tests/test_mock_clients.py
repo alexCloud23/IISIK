@@ -4,11 +4,12 @@ from decimal import Decimal
 
 import pytest
 
-from fixtures.market_data import SALES
+from fixtures.market_data import COMPETITOR_PRICES, SALES
 from fixtures.notification import NOTIFICATIONS
 from fixtures.pricing import RECOMMENDATIONS
 from fixtures.product import PRODUCTS
 from gateway.app.dto import (
+    CompetitorPriceData,
     ForecastData,
     NotificationData,
     ProductData,
@@ -167,15 +168,19 @@ class TestMockNotificationClient:
 class TestMockMarketDataClient:
     def test_sales_summary_values(self):
         client = MockMarketDataClient(
-            [SalesRecordData.model_validate(item) for item in SALES]
+            [SalesRecordData.model_validate(item) for item in SALES],
+            [CompetitorPriceData.model_validate(item) for item in COMPETITOR_PRICES],
         )
         summary = client.sales_summary(P1)
         assert summary.records == 6
         assert summary.total_quantity == 39
-        assert round(summary.average_unit_price, 2) == Decimal("1262.33")
+        assert round(summary.average_unit_price, 2) == Decimal("1255.67")
 
     def test_sales_summary_bad_uuid(self):
-        client = MockMarketDataClient([SalesRecordData.model_validate(item) for item in SALES])
+        client = MockMarketDataClient(
+            [SalesRecordData.model_validate(item) for item in SALES],
+            [CompetitorPriceData.model_validate(item) for item in COMPETITOR_PRICES],
+        )
         with pytest.raises(Exception):
             client.sales_summary("не-uuid")
 

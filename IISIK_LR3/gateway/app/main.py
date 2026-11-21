@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from strawberry.fastapi import GraphQLRouter
+
+from shared.errors import DomainError
 
 from .clients.factory import build_clients
 from .config import settings
@@ -10,8 +12,17 @@ from .schema.schema import schema
 clients = build_clients(settings)
 
 
-async def context_getter() -> dict[str, object]:
-    return {"clients": clients, "cache": {}}
+async def context_getter(request: Request) -> dict[str, object]:
+    user = None
+    token = None
+    header = request.headers.get("authorization", "")
+    if header.startswith("Bearer "):
+        token = header.removeprefix("Bearer ").strip()
+        try:
+            user = clients.auth.introspect(token)
+        except DomainError:
+            user = None
+    return {"clients": clients, "cache": {}, "user": user, "token": token}
 
 
 graphql_app = GraphQLRouter(

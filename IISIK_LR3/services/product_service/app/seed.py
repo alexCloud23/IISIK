@@ -5,10 +5,11 @@ from sqlalchemy.orm import Session
 
 from fixtures.product import PRODUCTS
 
-from .models import Product
+from .models import PriceHistory, Product
 
 
 def seed(session: Session) -> int:
+    session.execute(delete(PriceHistory))
     session.execute(delete(Product))
     session.add_all(
         [

@@ -17,3 +17,14 @@ class ForecastDTO(BaseModel):
     confidence: Decimal | None
     model_version: str
     created_at: datetime
+
+
+class SalePointDTO(BaseModel):
+    quantity: int
+    sold_at: datetime
+
+
+class ForecastGenerateDTO(BaseModel):
+    product_id: str
+    period_days: int = 7
+    sales: list[SalePointDTO]

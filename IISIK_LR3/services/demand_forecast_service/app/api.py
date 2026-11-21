@@ -13,7 +13,7 @@ from . import service
 from .config import settings
 from .db import engine, get_session
 from .models import Base
-from .schemas import ForecastDTO
+from .schemas import ForecastDTO, ForecastGenerateDTO
 
 
 @asynccontextmanager
@@ -48,6 +48,7 @@ def root() -> dict[str, object]:
         "endpoints": [
             "/forecasts?product_id=",
             "/forecasts/{forecast_id}",
+            "POST /forecasts/generate",
         ],
     }
 
@@ -57,6 +58,13 @@ def list_forecasts(
     product_id: str | None = None, session: Session = Depends(get_session)
 ) -> list[ForecastDTO]:
     return service.list_forecasts(session, product_id)
+
+
+@app.post("/forecasts/generate", response_model=ForecastDTO, status_code=201)
+def generate_forecast(
+    data: ForecastGenerateDTO, session: Session = Depends(get_session)
+) -> ForecastDTO:
+    return service.generate_forecast(session, data)
 
 
 @app.get("/forecasts/{forecast_id}", response_model=ForecastDTO)
