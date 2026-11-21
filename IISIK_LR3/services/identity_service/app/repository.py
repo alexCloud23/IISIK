@@ -10,6 +10,16 @@ def get_user(session: Session, user_id: str) -> User | None:
     return session.get(User, user_id)
 
 
+def get_user_by_email(session: Session, email: str) -> User | None:
+    stmt = select(User).where(User.email == email)
+    return session.scalars(stmt).first()
+
+
+def get_role_by_name(session: Session, name: str) -> Role | None:
+    stmt = select(Role).where(Role.name == name)
+    return session.scalars(stmt).first()
+
+
 def list_users(session: Session, is_active: bool | None = None) -> list[User]:
     stmt = select(User).order_by(User.full_name)
     if is_active is not None:

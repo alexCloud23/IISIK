@@ -6,6 +6,13 @@ from sqlalchemy.orm import Session
 from .models import AnalyticsResult
 
 
+def add_result(session: Session, result: AnalyticsResult) -> AnalyticsResult:
+    session.add(result)
+    session.commit()
+    session.refresh(result)
+    return result
+
+
 def list_results(
     session: Session, analysis_type: str | None = None
 ) -> list[AnalyticsResult]:

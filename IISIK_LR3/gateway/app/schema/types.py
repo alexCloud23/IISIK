@@ -9,6 +9,8 @@ from strawberry.types import Info
 from ..context import get_product_cached
 from ..dto import (
     AnalyticsResultData,
+    AuthPayloadData,
+    AuthUserData,
     ForecastData,
     NotificationData,
     ProductData,
@@ -245,3 +247,30 @@ class NotificationType:
             is_read=dto.is_read,
             created_at=_moment(dto.created_at),
         )
+
+
+@strawberry.type(name="User")
+class UserType:
+    id: strawberry.ID
+    email: str
+    full_name: str
+    roles: list[str]
+
+    @classmethod
+    def from_dto(cls, dto: AuthUserData) -> UserType:
+        return cls(
+            id=strawberry.ID(dto.id),
+            email=dto.email,
+            full_name=dto.full_name,
+            roles=list(dto.roles),
+        )
+
+
+@strawberry.type(name="AuthPayload")
+class AuthPayloadType:
+    token: str
+    user: UserType
+
+    @classmethod
+    def from_dto(cls, dto: AuthPayloadData) -> AuthPayloadType:
+        return cls(token=dto.token, user=UserType.from_dto(dto.user))

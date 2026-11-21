@@ -11,8 +11,8 @@ from shared.pricing_rules import round_money
 from shared.validation import validate_non_empty, validate_positive_price
 
 from . import repository
-from .models import Product
-from .schemas import ProductCreateDTO, ProductDTO, ProductUpdateDTO
+from .models import PriceHistory, Product
+from .schemas import PriceHistoryDTO, ProductCreateDTO, ProductDTO, ProductUpdateDTO
 
 VALID_SORT_FIELDS = ("name", "price", "created")
 VALID_ORDERS = ("asc", "desc")
@@ -95,8 +95,20 @@ def update_product(session: Session, product_id: str, data: ProductUpdateDTO) ->
     if "base_price" in provided:
         if not product.is_active:
             raise InvalidOperationError("Нельзя изменять цену неактивного товара")
-        price = validate_positive_price(data.base_price, "base_price")
-        product.base_price = round_money(price)
+        price = round_money(validate_positive_price(data.base_price, "base_price"))
+        if price != product.base_price:
+            repository.add_price_history(
+                session,
+                PriceHistory(
+                    id=str(uuid4()),
+                    product_id=product.id,
+                    old_price=product.base_price,
+                    new_price=price,
+                    currency=product.currency,
+                    changed_at=datetime.utcnow(),
+                ),
+            )
+            product.base_price = price
     if "description" in provided:
         product.description = data.description
     if "is_active" in provided and data.is_active is not None:
@@ -106,3 +118,13 @@ def update_product(session: Session, product_id: str, data: ProductUpdateDTO) ->
     session.commit()
     session.refresh(product)
     return ProductDTO.model_validate(product)
+
+
+def list_price_history(session: Session, product_id: str) -> list[PriceHistoryDTO]:
+    parsed = parse_uuid(product_id, "product_id")
+    if repository.get_product(session, str(parsed)) is None:
+        raise NotFoundError(f"Товар {product_id} не найден")
+    return [
+        PriceHistoryDTO.model_validate(row)
+        for row in repository.list_price_history(session, str(parsed))
+    ]

@@ -7,6 +7,7 @@ from starlette.testclient import TestClient
 from gateway.app.clients.factory import build_http_bundle, build_mock_bundle
 from gateway.app.config import Settings
 from gateway.app.schema.schema import schema
+from tests.conftest import admin_user
 
 P1 = "20000000-0000-4000-8000-000000000001"
 P5 = "20000000-0000-4000-8000-000000000005"
@@ -30,11 +31,9 @@ def _make_transport(app) -> httpx.BaseTransport:
 
     def handler(request: httpx.Request) -> httpx.Response:
         content = request.read()
-        headers = (
-            {"content-type": request.headers.get("content-type", "application/json")}
-            if content
-            else {}
-        )
+        headers = dict(request.headers)
+        headers.pop("host", None)
+        headers.pop("content-length", None)
         response = client.request(
             request.method,
             request.url.path,
@@ -57,7 +56,7 @@ def http_context():
         Settings(client_mode="http"),
         {name: _make_transport(importlib.import_module(f"{pkg}.api").app) for name, pkg in SERVICE_MODULES},
     )
-    ctx = {"clients": bundle, "cache": {}}
+    ctx = {"clients": bundle, "cache": {}, "user": admin_user()}
     for _name, pkg in SERVICE_MODULES:
         api = importlib.import_module(f"{pkg}.api")
         seed = importlib.import_module(f"{pkg}.seed")
@@ -69,10 +68,10 @@ def http_context():
     bundle.close()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture()
 def mock_context():
     bundle = build_mock_bundle()
-    ctx = {"clients": bundle, "cache": {}}
+    ctx = {"clients": bundle, "cache": {}, "user": admin_user()}
     yield ctx
     bundle.close()
 
@@ -128,6 +127,23 @@ def run_scenario(ctx) -> list[object]:
     outcome.append(
         run(f'mutation {{ generatePriceRecommendation(productId: "{P5}") {{ id }} }}')
     )
+    outcome.append(
+        run(f'mutation {{ updateProduct(id: "{P1}", input: {{ price: null }}) {{ id }} }}')
+    )
+    outcome.append(
+        run(f'mutation {{ generateDemandForecast(productId: "{P1}", periodDays: 7)'
+            " { productId predictedDemand confidence } }")
+    )
+    outcome.append(
+        run(f'mutation {{ analyzeCompetitorStrategy(productId: "{P1}")'
+            " { strategyType competitorPrice } }")
+    )
+    outcome.append(
+        run(f'mutation {{ runAnalytics(productId: "{P1}") {{ analysisType }} }}')
+    )
+    outcome.append(
+        run(f'{{ product(id: "{P1}") {{ currentPrice }} }}')
+    )
     return outcome
 
 
@@ -141,7 +157,7 @@ def test_key_values_are_expected(mock_context):
     results = run_scenario(mock_context)
     assert [p["currentPrice"] for p in results[0]["products"]] == [3499.0, 1299.0, 249.0]
     assert results[2]["salesSummary"] == {
-        "ordersCount": 6, "totalQuantity": 39, "avgUnitPrice": 1262.33,
+        "ordersCount": 6, "totalQuantity": 39, "avgUnitPrice": 1255.67,
     }
     generated = results[5]["generatePriceRecommendation"]
     assert generated["status"] == "NEW"
@@ -152,3 +168,10 @@ def test_key_values_are_expected(mock_context):
     assert results[14] == "INVALID_OPERATION"
     assert results[15] == "INVALID_ID"
     assert results[16] == "INVALID_OPERATION"
+    assert results[17] == "INVALID_INPUT"
+    forecast = results[18]["generateDemandForecast"]
+    assert forecast["productId"] == P1
+    assert forecast["predictedDemand"] > 0
+    assert results[19]["analyzeCompetitorStrategy"]["strategyType"] == "UNDERCUT"
+    assert results[20]["runAnalytics"]["analysisType"] == "SALES_SUMMARY"
+    assert results[21]["product"]["currentPrice"] == 1249.0

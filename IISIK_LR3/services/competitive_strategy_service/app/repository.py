@@ -6,6 +6,13 @@ from sqlalchemy.orm import Session
 from .models import CompetitorStrategy
 
 
+def add_strategy(session: Session, strategy: CompetitorStrategy) -> CompetitorStrategy:
+    session.add(strategy)
+    session.commit()
+    session.refresh(strategy)
+    return strategy
+
+
 def list_strategies(
     session: Session, product_id: str | None = None
 ) -> list[CompetitorStrategy]:

@@ -13,7 +13,7 @@ from . import service
 from .config import settings
 from .db import engine, get_session
 from .models import Base
-from .schemas import AnalyticsResultDTO
+from .schemas import AnalyticsResultDTO, AnalyticsRunDTO
 
 
 @asynccontextmanager
@@ -47,6 +47,7 @@ def root() -> dict[str, object]:
         "health": "/health",
         "endpoints": [
             "/analytics-results?analysis_type=",
+            "POST /analytics-results/run",
         ],
     }
 
@@ -56,3 +57,10 @@ def list_results(
     analysis_type: str | None = None, session: Session = Depends(get_session)
 ) -> list[AnalyticsResultDTO]:
     return service.list_results(session, analysis_type)
+
+
+@app.post("/analytics-results/run", response_model=AnalyticsResultDTO, status_code=201)
+def run_analysis(
+    data: AnalyticsRunDTO, session: Session = Depends(get_session)
+) -> AnalyticsResultDTO:
+    return service.run_analysis(session, data)

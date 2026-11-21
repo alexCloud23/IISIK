@@ -5,7 +5,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .models import Product
+from .models import PriceHistory, Product
 
 SORT_FIELDS: dict[str, object] = {
     "name": Product.name,
@@ -35,6 +35,19 @@ def add_product(session: Session, product: Product) -> Product:
     session.commit()
     session.refresh(product)
     return product
+
+
+def add_price_history(session: Session, entry: PriceHistory) -> None:
+    session.add(entry)
+
+
+def list_price_history(session: Session, product_id: str) -> list[PriceHistory]:
+    stmt = (
+        select(PriceHistory)
+        .where(PriceHistory.product_id == product_id)
+        .order_by(PriceHistory.changed_at.desc())
+    )
+    return list(session.scalars(stmt))
 
 
 def list_products(

@@ -7,7 +7,7 @@ from strawberry.types import Info
 
 from shared.errors import NotFoundError
 
-from ..context import get_clients
+from ..context import get_clients, require_user
 from ..resolvers import translate_errors
 from .types import (
     AnalyticsResultType,
@@ -44,6 +44,7 @@ class Query:
         order_direction: SortDirection = SortDirection.ASC,
     ) -> list[ProductType]:
         with translate_errors():
+            require_user(info)
             items = get_clients(info).product.list_products(
                 category=category,
                 is_active=is_active,
@@ -58,6 +59,7 @@ class Query:
     @strawberry.field
     def product(self, info: Info, id: strawberry.ID) -> ProductType | None:
         with translate_errors():
+            require_user(info)
             item = get_clients(info).product.get_product(str(id))
             if item is None:
                 raise NotFoundError(f"Товар {id} не найден")
@@ -68,6 +70,7 @@ class Query:
         self, info: Info, product_id: strawberry.ID | None = None
     ) -> list[DemandForecastType]:
         with translate_errors():
+            require_user(info)
             items = get_clients(info).forecast.list_forecasts(
                 str(product_id) if product_id else None
             )
@@ -78,6 +81,7 @@ class Query:
         self, info: Info, product_id: strawberry.ID | None = None
     ) -> list[CompetitorStrategyType]:
         with translate_errors():
+            require_user(info)
             items = get_clients(info).strategy.list_strategies(
                 str(product_id) if product_id else None
             )
@@ -93,6 +97,7 @@ class Query:
         order_direction: SortDirection = SortDirection.DESC,
     ) -> list[PriceRecommendationType]:
         with translate_errors():
+            require_user(info)
             items = get_clients(info).recommendation.list_recommendations(
                 product_id=str(product_id) if product_id else None,
                 status=status.value if status else None,
@@ -106,6 +111,7 @@ class Query:
         self, info: Info, id: strawberry.ID
     ) -> PriceRecommendationType | None:
         with translate_errors():
+            require_user(info)
             item = get_clients(info).recommendation.get_recommendation(str(id))
             if item is None:
                 raise NotFoundError(f"Рекомендация {id} не найдена")
@@ -116,6 +122,7 @@ class Query:
         self, info: Info, analysis_type: str | None = None
     ) -> list[AnalyticsResultType]:
         with translate_errors():
+            require_user(info)
             items = get_clients(info).analytics.list_results(analysis_type)
         return [AnalyticsResultType.from_dto(item) for item in items]
 
@@ -127,6 +134,7 @@ class Query:
         notification_type: str | None = None,
     ) -> list[NotificationType]:
         with translate_errors():
+            require_user(info)
             items = get_clients(info).notification.list_notifications(
                 is_read, notification_type
             )
@@ -137,16 +145,19 @@ class Query:
         self, info: Info, product_id: strawberry.ID
     ) -> SalesSummaryType:
         with translate_errors():
+            require_user(info)
             summary = get_clients(info).market_data.sales_summary(str(product_id))
         return SalesSummaryType.from_dto(summary)
 
     @strawberry.field
     def unread_notifications_count(self, info: Info) -> int:
         with translate_errors():
+            require_user(info)
             return get_clients(info).notification.get_unread_count()
 
     @strawberry.field
     def recommendations_summary(self, info: Info) -> RecommendationsSummaryType:
         with translate_errors():
+            require_user(info)
             summary = get_clients(info).recommendation.recommendations_summary()
         return RecommendationsSummaryType.from_dto(summary)

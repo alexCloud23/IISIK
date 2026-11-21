@@ -42,6 +42,16 @@ class UpstreamUnavailableError(DomainError):
     http_status = 502
 
 
+class UnauthorizedError(DomainError):
+    code = "UNAUTHENTICATED"
+    http_status = 401
+
+
+class ForbiddenError(DomainError):
+    code = "FORBIDDEN"
+    http_status = 403
+
+
 def parse_uuid(value: str, field: str = "id") -> UUID:
     try:
         return UUID(str(value))

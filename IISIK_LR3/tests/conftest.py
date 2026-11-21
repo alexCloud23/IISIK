@@ -20,3 +20,16 @@ for _prefix, _name in (
         f"{_prefix}DATABASE_URL",
         f"sqlite:///{(_DB_DIR / f'{_name}.db').as_posix()}",
     )
+
+os.environ.setdefault("IDENTITY_REDIS_URL", "fakeredis://")
+
+from gateway.app.dto import AuthUserData
+
+
+def admin_user() -> AuthUserData:
+    return AuthUserData(
+        id="00000000-0000-4000-8000-000000000000",
+        email="admin@example.com",
+        full_name="Тестовый администратор",
+        roles=["ADMIN"],
+    )

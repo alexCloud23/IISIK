@@ -7,21 +7,27 @@ import httpx
 
 from shared.errors import (
     DomainError,
+    ForbiddenError,
     InvalidFilterError,
     InvalidIdError,
     InvalidInputError,
     InvalidOperationError,
     NotFoundError,
+    UnauthorizedError,
     UpstreamUnavailableError,
 )
 
 from ...dto import (
     AnalyticsResultData,
+    AuthPayloadData,
+    AuthUserData,
+    CompetitorPriceData,
     ForecastData,
     NotificationData,
     ProductData,
     RecommendationData,
     RecommendationsSummaryData,
+    SalesRecordData,
     SalesSummaryData,
     StrategyData,
 )
@@ -33,6 +39,8 @@ _ERROR_CLASSES: dict[str, type[DomainError]] = {
     InvalidFilterError.code: InvalidFilterError,
     InvalidInputError.code: InvalidInputError,
     InvalidOperationError.code: InvalidOperationError,
+    UnauthorizedError.code: UnauthorizedError,
+    ForbiddenError.code: ForbiddenError,
 }
 
 _DEFAULT_MESSAGES: dict[type[DomainError], str] = {
@@ -41,6 +49,8 @@ _DEFAULT_MESSAGES: dict[type[DomainError], str] = {
     InvalidFilterError: "Некорректный параметр фильтрации",
     InvalidInputError: "Некорректные данные запроса",
     InvalidOperationError: "Операция недопустима",
+    UnauthorizedError: "Требуется аутентификация",
+    ForbiddenError: "Недостаточно прав",
 }
 
 
@@ -82,6 +92,10 @@ def _raise_domain_error(response: httpx.Response, base_url: Any) -> NoReturn:
             error_cls = InvalidOperationError
         elif status == 404:
             error_cls = NotFoundError
+        elif status == 401:
+            error_cls = UnauthorizedError
+        elif status == 403:
+            error_cls = ForbiddenError
         else:
             raise UpstreamUnavailableError(
                 message
@@ -135,11 +149,12 @@ class HttpServiceClient:
         path: str,
         json_body: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         filtered = {key: value for key, value in (params or {}).items() if value is not None}
         try:
             response = self._client.request(
-                method, path, json=json_body, params=filtered or None
+                method, path, json=json_body, params=filtered or None, headers=headers
             )
         except httpx.HTTPError as exc:
             raise UpstreamUnavailableError(
@@ -242,12 +257,58 @@ class HttpForecastClient(HttpServiceClient):
         assert response is not None
         return [ForecastData.model_validate(item) for item in response.json()]
 
+    def generate_forecast(
+        self,
+        *,
+        product_id: str,
+        period_days: int,
+        sales: list[SalesRecordData],
+    ) -> ForecastData:
+        response = self._send(
+            "POST",
+            "/forecasts/generate",
+            {
+                "product_id": product_id,
+                "period_days": period_days,
+                "sales": [
+                    {"quantity": item.quantity, "sold_at": item.sold_at.isoformat()}
+                    for item in sales
+                ],
+            },
+        )
+        return ForecastData.model_validate(response.json())
+
 
 class HttpStrategyClient(HttpServiceClient):
     def list_strategies(self, product_id: str | None = None) -> list[StrategyData]:
         response = self._get("/strategies", {"product_id": product_id})
         assert response is not None
         return [StrategyData.model_validate(item) for item in response.json()]
+
+    def analyze_strategy(
+        self,
+        *,
+        product_id: str,
+        current_price: Decimal,
+        competitor_prices: list[CompetitorPriceData],
+    ) -> StrategyData:
+        response = self._send(
+            "POST",
+            "/strategies/analyze",
+            {
+                "product_id": product_id,
+                "current_price": self._money(current_price),
+                "competitor_prices": [
+                    {
+                        "competitor_name": item.competitor_name,
+                        "price": self._money(item.price),
+                        "observed_at": item.observed_at.isoformat(),
+                    }
+                    for item in competitor_prices
+                ],
+            },
+        )
+        return StrategyData.model_validate(response.json())
 
 
 class HttpRecommendationClient(HttpServiceClient):
@@ -327,6 +388,34 @@ class HttpAnalyticsClient(HttpServiceClient):
         assert response is not None
         return [AnalyticsResultData.model_validate(item) for item in response.json()]
 
+    def run_analysis(
+        self,
+        *,
+        product_id: str,
+        analysis_type: str,
+        summary: SalesSummaryData,
+        predicted_demand: Decimal | None = None,
+        current_price: Decimal | None = None,
+        recommended_price: Decimal | None = None,
+        recommendation_id: str | None = None,
+    ) -> AnalyticsResultData:
+        response = self._send(
+            "POST",
+            "/analytics-results/run",
+            {
+                "product_id": product_id,
+                "analysis_type": analysis_type,
+                "records": summary.records,
+                "total_quantity": summary.total_quantity,
+                "average_unit_price": self._money(summary.average_unit_price),
+                "predicted_demand": self._money(predicted_demand),
+                "current_price": self._money(current_price),
+                "recommended_price": self._money(recommended_price),
+                "recommendation_id": recommendation_id,
+            },
+        )
+        return AnalyticsResultData.model_validate(response.json())
+
 
 class HttpNotificationClient(HttpServiceClient):
     def list_notifications(
@@ -386,3 +475,68 @@ class HttpMarketDataClient(HttpServiceClient):
             "GET", "/sales-summary", params={"product_id": product_id}
         )
         return SalesSummaryData.model_validate(response.json())
+
+    def list_sales(
+        self, product_id: str | None = None, limit: int = 1000
+    ) -> list[SalesRecordData]:
+        response = self._get(
+            "/sales-history", {"product_id": product_id, "limit": limit}
+        )
+        assert response is not None
+        return [SalesRecordData.model_validate(item) for item in response.json()]
+
+    def list_competitor_prices(
+        self, product_id: str | None = None, limit: int = 1000
+    ) -> list[CompetitorPriceData]:
+        response = self._get(
+            "/competitor-prices", {"product_id": product_id, "limit": limit}
+        )
+        assert response is not None
+        return [CompetitorPriceData.model_validate(item) for item in response.json()]
+
+
+class HttpAuthClient(HttpServiceClient):
+    def login(self, email: str, password: str) -> AuthPayloadData:
+        response = self._send(
+            "POST", "/auth/login", {"email": email, "password": password}
+        )
+        return _auth_payload(response.json())
+
+    def register(
+        self, email: str, password: str, full_name: str
+    ) -> AuthPayloadData:
+        response = self._send(
+            "POST",
+            "/auth/register",
+            {"email": email, "password": password, "full_name": full_name},
+        )
+        return _auth_payload(response.json())
+
+    def logout(self, token: str) -> None:
+        self._send(
+            "POST",
+            "/auth/logout",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    def introspect(self, token: str) -> AuthUserData:
+        response = self._send("POST", "/auth/introspect", {"token": token})
+        data = response.json()
+        return AuthUserData(
+            id=data["user_id"],
+            email=data["email"],
+            full_name=data["full_name"],
+            roles=list(data["roles"]),
+        )
+
+
+def _auth_payload(data: dict[str, Any]) -> AuthPayloadData:
+    return AuthPayloadData(
+        token=data["token"],
+        user=AuthUserData(
+            id=data["user"]["id"],
+            email=data["user"]["email"],
+            full_name=data["user"]["full_name"],
+            roles=list(data["roles"]),
+        ),
+    )

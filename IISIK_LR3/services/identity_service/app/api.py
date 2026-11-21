@@ -7,13 +7,21 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from shared.errors import DomainError
+from shared.errors import DomainError, UnauthorizedError
 
-from . import service
+from . import auth_service, service
 from .config import settings
 from .db import engine, get_session
 from .models import Base
-from .schemas import RoleDTO, UserDTO
+from .schemas import (
+    AuthPayloadDTO,
+    IntrospectDTO,
+    LoginRequest,
+    RegisterRequest,
+    RoleDTO,
+    TokenRequest,
+    UserDTO,
+)
 
 
 @asynccontextmanager
@@ -51,8 +59,45 @@ def root() -> dict[str, object]:
             "/users/{user_id}/roles",
             "/roles",
             "/roles/{role_id}",
+            "/auth/register",
+            "/auth/login",
+            "/auth/logout",
+            "/auth/introspect",
         ],
     }
+
+
+def _bearer_token(request: Request) -> str:
+    header = request.headers.get("authorization", "")
+    if not header.startswith("Bearer "):
+        raise UnauthorizedError("Отсутствует заголовок Authorization: Bearer <token>")
+    return header.removeprefix("Bearer ").strip()
+
+
+@app.post("/auth/register", response_model=AuthPayloadDTO, status_code=201)
+def register(
+    body: RegisterRequest, session: Session = Depends(get_session)
+) -> AuthPayloadDTO:
+    return auth_service.register(session, body.email, body.password, body.full_name)
+
+
+@app.post("/auth/login", response_model=AuthPayloadDTO)
+def login(
+    body: LoginRequest, session: Session = Depends(get_session)
+) -> AuthPayloadDTO:
+    return auth_service.login(session, body.email, body.password)
+
+
+@app.post("/auth/logout", status_code=204)
+def logout(request: Request) -> None:
+    auth_service.logout(_bearer_token(request))
+
+
+@app.post("/auth/introspect", response_model=IntrospectDTO)
+def introspect(
+    body: TokenRequest, session: Session = Depends(get_session)
+) -> IntrospectDTO:
+    return auth_service.introspect(session, body.token)
 
 
 @app.get("/users", response_model=list[UserDTO])

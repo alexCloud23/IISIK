@@ -6,6 +6,13 @@ from sqlalchemy.orm import Session
 from .models import DemandForecast
 
 
+def add_forecast(session: Session, forecast: DemandForecast) -> DemandForecast:
+    session.add(forecast)
+    session.commit()
+    session.refresh(forecast)
+    return forecast
+
+
 def get_forecast(session: Session, forecast_id: str) -> DemandForecast | None:
     return session.get(DemandForecast, forecast_id)
 

@@ -4,6 +4,7 @@ import pytest
 
 from gateway.app.clients.factory import build_mock_bundle
 from gateway.app.schema.schema import schema
+from tests.conftest import admin_user
 
 P1 = "20000000-0000-4000-8000-000000000001"
 P5 = "20000000-0000-4000-8000-000000000005"
@@ -15,7 +16,7 @@ N1 = "90000000-0000-4000-8000-000000000001"
 @pytest.fixture()
 def context():
     bundle = build_mock_bundle()
-    ctx = {"clients": bundle, "cache": {}}
+    ctx = {"clients": bundle, "cache": {}, "user": admin_user()}
     yield ctx
     bundle.close()
 
@@ -85,7 +86,7 @@ class TestQueries:
         )
         assert result.errors is None
         assert result.data["salesSummary"] == {
-            "ordersCount": 6, "totalQuantity": 39, "avgUnitPrice": 1262.33,
+            "ordersCount": 6, "totalQuantity": 39, "avgUnitPrice": 1255.67,
         }
 
     def test_unread_notifications_count(self, context):
@@ -175,10 +176,14 @@ class TestMutations:
         result = execute(
             context,
             f'mutation {{ decideRecommendation(id: "{R1}", decision: ACCEPTED)'
-            " { status } }",
+            " { status recommendedPrice } }",
         )
         assert result.errors is None
-        assert result.data["decideRecommendation"]["status"] == "ACCEPTED"
+        accepted = result.data["decideRecommendation"]
+        assert accepted["status"] == "ACCEPTED"
+
+        product = execute(context, f'{{ product(id: "{P1}") {{ currentPrice }} }}')
+        assert product.data["product"]["currentPrice"] == accepted["recommendedPrice"]
 
         result = execute(
             context,
@@ -193,6 +198,68 @@ class TestMutations:
             " { status } }",
         )
         assert result.errors[0].extensions == {"code": "INVALID_OPERATION"}
+
+    def test_update_product_null_price(self, context):
+        result = execute(
+            context,
+            f'mutation {{ updateProduct(id: "{P1}", input: {{ price: null }}) {{ id }} }}',
+        )
+        assert result.errors[0].extensions == {"code": "INVALID_INPUT"}
+
+    def test_generate_demand_forecast(self, context):
+        result = execute(
+            context,
+            f'mutation {{ generateDemandForecast(productId: "{P1}", periodDays: 7)'
+            " { id productId predictedDemand confidence } }",
+        )
+        assert result.errors is None
+        data = result.data["generateDemandForecast"]
+        assert data["productId"] == P1
+        assert data["predictedDemand"] > 0
+        assert 0 < data["confidence"] <= 1
+
+        stored = execute(
+            context, f'{{ demandForecasts(productId: "{P1}") {{ id }} }}'
+        )
+        assert data["id"] in [
+            item["id"] for item in stored.data["demandForecasts"]
+        ]
+
+    def test_analyze_competitor_strategy(self, context):
+        result = execute(
+            context,
+            f'mutation {{ analyzeCompetitorStrategy(productId: "{P1}")'
+            " { strategyType competitorPrice description } }",
+        )
+        assert result.errors is None
+        data = result.data["analyzeCompetitorStrategy"]
+        assert data["strategyType"] in ("MATCH", "UNDERCUT", "PREMIUM")
+        assert data["competitorPrice"] > 0
+
+    def test_run_analytics(self, context):
+        result = execute(
+            context,
+            f'mutation {{ runAnalytics(productId: "{P1}") {{ analysisType result }} }}',
+        )
+        assert result.errors is None
+        data = result.data["runAnalytics"]
+        assert data["analysisType"] == "SALES_SUMMARY"
+        assert "total_quantity=39" in data["result"]
+
+    def test_notification_failure_does_not_fail_mutation(self, context):
+        from shared.errors import UpstreamUnavailableError
+
+        def fail(**kwargs):
+            raise UpstreamUnavailableError("Notification Service недоступен")
+
+        context["clients"].notification.create_notification = fail
+        result = execute(
+            context,
+            f'mutation {{ generatePriceRecommendation(productId: "{P1}")'
+            " { status recommendedPrice } }",
+        )
+        assert result.errors is None
+        assert result.data["generatePriceRecommendation"]["status"] == "NEW"
 
     def test_mark_notification_read_and_mark_all(self, context):
         result = execute(

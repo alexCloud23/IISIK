@@ -13,7 +13,7 @@ from . import service
 from .config import settings
 from .db import engine, get_session
 from .models import Base
-from .schemas import StrategyDTO
+from .schemas import StrategyAnalyzeDTO, StrategyDTO
 
 
 @asynccontextmanager
@@ -49,6 +49,7 @@ def root() -> dict[str, object]:
         "health": "/health",
         "endpoints": [
             "/strategies?product_id=",
+            "POST /strategies/analyze",
         ],
     }
 
@@ -58,3 +59,10 @@ def list_strategies(
     product_id: str | None = None, session: Session = Depends(get_session)
 ) -> list[StrategyDTO]:
     return service.list_strategies(session, product_id)
+
+
+@app.post("/strategies/analyze", response_model=StrategyDTO, status_code=201)
+def analyze_strategy(
+    data: StrategyAnalyzeDTO, session: Session = Depends(get_session)
+) -> StrategyDTO:
+    return service.analyze_strategy(session, data)
