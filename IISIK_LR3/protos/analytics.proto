@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package analytics;
+
+service AnalyticsService {
+  rpc ListResults(ListResultsRequest) returns (ListResultsResponse);
+  rpc RunAnalysis(RunAnalysisRequest) returns (AnalyticsResult);
+}
+
+message AnalyticsResult {
+  string id = 1;
+  optional string product_id = 2;
+  optional string recommendation_id = 3;
+  string analysis_type = 4;
+  string metrics_json = 5;
+  string created_at = 6;
+}
+
+message ListResultsRequest {
+  optional string analysis_type = 1;
+}
+
+message ListResultsResponse {
+  repeated AnalyticsResult results = 1;
+}
+
+message RunAnalysisRequest {
+  string product_id = 1;
+  string analysis_type = 2;
+  int32 records = 3;
+  int32 total_quantity = 4;
+  string average_unit_price = 5;
+  optional string predicted_demand = 6;
+  optional string current_price = 7;
+  optional string recommended_price = 8;
+  optional string recommendation_id = 9;
+}

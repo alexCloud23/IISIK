@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     service_name: str = "product"
     port: int = 8002
+    grpc_port: int = 50052
     database_url: str = f"sqlite:///{(BASE_DIR / 'data' / 'product.db').as_posix()}"
 
 

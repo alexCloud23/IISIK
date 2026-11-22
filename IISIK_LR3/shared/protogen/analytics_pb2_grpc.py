@@ -1,0 +1,139 @@
+"""Client and server classes corresponding to protobuf-defined services."""
+import grpc
+import warnings
+
+import analytics_pb2 as analytics__pb2
+
+GRPC_GENERATED_VERSION = '1.85.3'
+GRPC_VERSION = grpc.__version__
+_version_not_supported = False
+
+try:
+    from grpc._utilities import first_version_is_lower
+    _version_not_supported = first_version_is_lower(GRPC_VERSION, GRPC_GENERATED_VERSION)
+except ImportError:
+    _version_not_supported = True
+
+if _version_not_supported:
+    raise RuntimeError(
+        f'The grpc package installed is at version {GRPC_VERSION},'
+        + ' but the generated code in analytics_pb2_grpc.py depends on'
+        + f' grpcio>={GRPC_GENERATED_VERSION}.'
+        + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
+        + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
+    )
+
+
+class AnalyticsServiceStub:
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.ListResults = channel.unary_unary(
+                '/analytics.AnalyticsService/ListResults',
+                request_serializer=analytics__pb2.ListResultsRequest.SerializeToString,
+                response_deserializer=analytics__pb2.ListResultsResponse.FromString,
+                _registered_method=True)
+        self.RunAnalysis = channel.unary_unary(
+                '/analytics.AnalyticsService/RunAnalysis',
+                request_serializer=analytics__pb2.RunAnalysisRequest.SerializeToString,
+                response_deserializer=analytics__pb2.AnalyticsResult.FromString,
+                _registered_method=True)
+
+
+class AnalyticsServiceServicer:
+    """Missing associated documentation comment in .proto file."""
+
+    def ListResults(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RunAnalysis(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_AnalyticsServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'ListResults': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListResults,
+                    request_deserializer=analytics__pb2.ListResultsRequest.FromString,
+                    response_serializer=analytics__pb2.ListResultsResponse.SerializeToString,
+            ),
+            'RunAnalysis': grpc.unary_unary_rpc_method_handler(
+                    servicer.RunAnalysis,
+                    request_deserializer=analytics__pb2.RunAnalysisRequest.FromString,
+                    response_serializer=analytics__pb2.AnalyticsResult.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'analytics.AnalyticsService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('analytics.AnalyticsService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class AnalyticsService:
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def ListResults(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/analytics.AnalyticsService/ListResults',
+            analytics__pb2.ListResultsRequest.SerializeToString,
+            analytics__pb2.ListResultsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RunAnalysis(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/analytics.AnalyticsService/RunAnalysis',
+            analytics__pb2.RunAnalysisRequest.SerializeToString,
+            analytics__pb2.AnalyticsResult.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

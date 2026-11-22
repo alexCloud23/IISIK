@@ -12,6 +12,7 @@ from shared.errors import DomainError
 from . import service
 from .config import settings
 from .db import engine, get_session
+from .grpc_server import start_grpc_server
 from .models import Base
 from .schemas import AnalyticsResultDTO, AnalyticsRunDTO
 
@@ -19,7 +20,9 @@ from .schemas import AnalyticsResultDTO, AnalyticsRunDTO
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     Base.metadata.create_all(engine)
+    grpc_server = start_grpc_server(settings.grpc_port)
     yield
+    grpc_server.stop(grace=1).wait()
 
 
 app = FastAPI(title="Analytics Service", version="1.0.0", lifespan=lifespan)

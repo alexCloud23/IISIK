@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package identity;
+
+import "google/protobuf/empty.proto";
+
+service IdentityService {
+  rpc Login(LoginRequest) returns (AuthPayload);
+  rpc Register(RegisterRequest) returns (AuthPayload);
+  rpc Logout(LogoutRequest) returns (google.protobuf.Empty);
+  rpc Introspect(IntrospectRequest) returns (IntrospectResponse);
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string full_name = 3;
+  bool is_active = 4;
+  string created_at = 5;
+}
+
+message AuthPayload {
+  string token = 1;
+  User user = 2;
+  repeated string roles = 3;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string full_name = 3;
+}
+
+message LogoutRequest {
+  string token = 1;
+}
+
+message IntrospectRequest {
+  string token = 1;
+}
+
+message IntrospectResponse {
+  string user_id = 1;
+  string email = 2;
+  string full_name = 3;
+  repeated string roles = 4;
+}

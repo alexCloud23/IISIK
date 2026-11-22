@@ -42,8 +42,19 @@ def _money_text(value: Decimal) -> str:
     return f"{value:.2f}"
 
 
-def _notify(clients, **kwargs) -> None:
+def _notify(info: Info, clients, **kwargs) -> None:
     try:
+        publisher = (
+            info.context.get("publisher")
+            if isinstance(info.context, dict)
+            else None
+        )
+        if publisher is not None:
+            try:
+                publisher.publish(kwargs)
+                return
+            except Exception:
+                pass
         clients.notification.create_notification(**kwargs)
     except DomainError:
         pass
@@ -151,7 +162,7 @@ class Mutation:
                 strategy_id=strategy.id if strategy else None,
             )
             _notify(
-                clients,
+                info, clients,
                 notification_type="RECOMMENDATION_CREATED",
                 title="Новая ценовая рекомендация",
                 message=(
@@ -189,7 +200,7 @@ class Mutation:
                 else f"по товару {dto.product_id}"
             )
             _notify(
-                clients,
+                info, clients,
                 notification_type=(
                     "DECISION_ACCEPTED" if accepted else "RECOMMENDATION_REJECTED"
                 ),
@@ -225,7 +236,7 @@ class Mutation:
                 product_id=normalized, period_days=period_days, sales=sales
             )
             _notify(
-                clients,
+                info, clients,
                 notification_type="FORECAST_READY",
                 title="Прогноз спроса готов",
                 message=(
@@ -256,7 +267,7 @@ class Mutation:
                 competitor_prices=competitor_prices,
             )
             _notify(
-                clients,
+                info, clients,
                 notification_type="STRATEGY_ANALYZED",
                 title="Стратегия конкурентов проанализирована",
                 message=(
@@ -298,7 +309,7 @@ class Mutation:
                 recommendation_id=latest.id if latest else None,
             )
             _notify(
-                clients,
+                info, clients,
                 notification_type="ANALYTICS_READY",
                 title="Аналитика готова",
                 message=(

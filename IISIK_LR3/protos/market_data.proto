@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package marketdata;
+
+service MarketDataService {
+  rpc SalesSummary(SalesSummaryRequest) returns (SalesSummaryResponse);
+  rpc ListSales(ListSalesRequest) returns (ListSalesResponse);
+  rpc ListCompetitorPrices(ListCompetitorPricesRequest) returns (ListCompetitorPricesResponse);
+}
+
+message SalesRecord {
+  string id = 1;
+  string product_id = 2;
+  int32 quantity = 3;
+  string unit_price = 4;
+  string currency = 5;
+  string sold_at = 6;
+}
+
+message CompetitorPrice {
+  string id = 1;
+  string product_id = 2;
+  string competitor_name = 3;
+  string price = 4;
+  string currency = 5;
+  string source = 6;
+  string observed_at = 7;
+}
+
+message SalesSummaryRequest {
+  string product_id = 1;
+}
+
+message SalesSummaryResponse {
+  string product_id = 1;
+  int32 records = 2;
+  int32 total_quantity = 3;
+  string average_unit_price = 4;
+}
+
+message ListSalesRequest {
+  optional string product_id = 1;
+  int32 limit = 2;
+}
+
+message ListSalesResponse {
+  repeated SalesRecord sales = 1;
+}
+
+message ListCompetitorPricesRequest {
+  optional string product_id = 1;
+  int32 limit = 2;
+}
+
+message ListCompetitorPricesResponse {
+  repeated CompetitorPrice prices = 1;
+}

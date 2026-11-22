@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -11,7 +12,9 @@ from shared.errors import DomainError
 
 from . import service
 from .config import settings
+from .consumer import start_consumer
 from .db import engine, get_session
+from .grpc_server import start_grpc_server
 from .models import Base
 from .schemas import NotificationCreateDTO, NotificationDTO
 
@@ -19,7 +22,16 @@ from .schemas import NotificationCreateDTO, NotificationDTO
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     Base.metadata.create_all(engine)
+    grpc_server = start_grpc_server(settings.grpc_port)
+    stop_event = threading.Event()
+    consumer_thread = None
+    if settings.kafka_enabled:
+        consumer_thread = start_consumer(settings.kafka_bootstrap_servers, stop_event)
     yield
+    stop_event.set()
+    if consumer_thread is not None:
+        consumer_thread.join(timeout=5)
+    grpc_server.stop(grace=1).wait()
 
 
 app = FastAPI(title="Notification Service", version="1.0.0", lifespan=lifespan)

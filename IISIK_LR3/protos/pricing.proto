@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package pricing;
+
+import "google/protobuf/empty.proto";
+
+service PricingService {
+  rpc ListRecommendations(ListRecommendationsRequest) returns (ListRecommendationsResponse);
+  rpc GetRecommendation(GetRecommendationRequest) returns (GetRecommendationResponse);
+  rpc CreateRecommendation(CreateRecommendationRequest) returns (Recommendation);
+  rpc DecideRecommendation(DecideRecommendationRequest) returns (Recommendation);
+  rpc RecommendationsSummary(google.protobuf.Empty) returns (RecommendationsSummaryResponse);
+}
+
+message Recommendation {
+  string id = 1;
+  string product_id = 2;
+  string forecast_id = 3;
+  optional string strategy_id = 4;
+  string current_price = 5;
+  string recommended_price = 6;
+  string currency = 7;
+  string reason = 8;
+  string status = 9;
+  string created_at = 10;
+}
+
+message ListRecommendationsRequest {
+  optional string product_id = 1;
+  optional string status = 2;
+  string sort = 3;
+  string order = 4;
+}
+
+message ListRecommendationsResponse {
+  repeated Recommendation recommendations = 1;
+}
+
+message GetRecommendationRequest {
+  string id = 1;
+}
+
+message GetRecommendationResponse {
+  optional Recommendation recommendation = 1;
+}
+
+message CreateRecommendationRequest {
+  string product_id = 1;
+  string forecast_id = 2;
+  string current_price = 3;
+  optional string strategy_type = 4;
+  optional string competitor_price = 5;
+  optional string strategy_id = 6;
+}
+
+message DecideRecommendationRequest {
+  string id = 1;
+  string decision = 2;
+}
+
+message RecommendationsSummaryResponse {
+  int32 total = 1;
+  int32 new = 2;
+  int32 accepted = 3;
+  int32 rejected = 4;
+}
