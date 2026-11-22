@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package notification;
+
+import "google/protobuf/empty.proto";
+
+service NotificationService {
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc GetUnreadCount(google.protobuf.Empty) returns (UnreadCountResponse);
+  rpc CreateNotification(CreateNotificationRequest) returns (Notification);
+  rpc MarkNotificationRead(MarkNotificationReadRequest) returns (Notification);
+  rpc MarkAllNotificationsRead(google.protobuf.Empty) returns (MarkAllReadResponse);
+}
+
+message Notification {
+  string id = 1;
+  string user_id = 2;
+  string notification_type = 3;
+  string title = 4;
+  string message = 5;
+  optional string related_entity_id = 6;
+  string status = 7;
+  bool is_read = 8;
+  string created_at = 9;
+  optional string sent_at = 10;
+}
+
+message ListNotificationsRequest {
+  optional bool is_read = 1;
+  optional string notification_type = 2;
+}
+
+message ListNotificationsResponse {
+  repeated Notification notifications = 1;
+}
+
+message UnreadCountResponse {
+  int32 unread = 1;
+}
+
+message CreateNotificationRequest {
+  string notification_type = 1;
+  string title = 2;
+  string message = 3;
+  optional string related_entity_id = 4;
+  optional string user_id = 5;
+}
+
+message MarkNotificationReadRequest {
+  string id = 1;
+}
+
+message MarkAllReadResponse {
+  int32 updated = 1;
+}

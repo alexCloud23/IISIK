@@ -67,13 +67,22 @@ def test_services_do_not_import_each_other():
     assert not offenders, f"сервисы импортируют другие сервисы: {offenders}"
 
 
-def test_no_grpc_or_brokers():
-    forbidden = {"grpc", "pika", "kafka", "celery"}
+def test_no_rabbitmq_or_celery():
+    forbidden = {"pika", "celery"}
     offenders = []
     for f in python_files("gateway") + python_files("services") + python_files("shared"):
         if imports_of(f) & forbidden:
             offenders.append(str(f))
-    assert not offenders, f"найдены сетевые брокеры/gRPC: {offenders}"
+    assert not offenders, f"найдены лишние брокеры: {offenders}"
+
+
+def test_grpc_clients_do_not_import_fixtures():
+    offenders = [
+        f
+        for f in python_files("gateway", "app", "clients", "grpc")
+        if any(mod == "fixtures" or mod.startswith("fixtures.") for mod in imports_of(f))
+    ]
+    assert not offenders, f"grpc-клиенты используют fixtures: {offenders}"
 
 
 def test_redis_only_in_identity_service():

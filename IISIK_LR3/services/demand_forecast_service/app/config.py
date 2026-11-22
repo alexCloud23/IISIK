@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     service_name: str = "demand_forecast"
     port: int = 8004
+    grpc_port: int = 50054
     database_url: str = (
         f"sqlite:///{(BASE_DIR / 'data' / 'demand_forecast.db').as_posix()}"
     )

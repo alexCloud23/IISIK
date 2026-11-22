@@ -45,7 +45,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Запуск всех сервисов системы")
     parser.add_argument(
         "--mode",
-        choices=("mock", "http"),
+        choices=("mock", "http", "grpc"),
         default="mock",
     )
     args = parser.parse_args()

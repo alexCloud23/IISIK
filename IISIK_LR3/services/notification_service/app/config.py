@@ -12,6 +12,9 @@ class Settings(BaseSettings):
 
     service_name: str = "notification"
     port: int = 8008
+    grpc_port: int = 50058
+    kafka_enabled: bool = True
+    kafka_bootstrap_servers: str = "127.0.0.1:9092"
     database_url: str = f"sqlite:///{(BASE_DIR / 'data' / 'notification.db').as_posix()}"
 
 

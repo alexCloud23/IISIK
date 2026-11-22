@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     service_name: str = "analytics"
     port: int = 8007
+    grpc_port: int = 50057
     database_url: str = f"sqlite:///{(BASE_DIR / 'data' / 'analytics.db').as_posix()}"
 
 

@@ -155,16 +155,56 @@ def build_http_bundle(
     )
 
 
+def build_grpc_bundle(
+    settings: Settings, addrs: dict[str, str] | None = None
+) -> ClientBundle:
+    from .grpc import (
+        GrpcAnalyticsClient,
+        GrpcAuthClient,
+        GrpcForecastClient,
+        GrpcMarketDataClient,
+        GrpcNotificationClient,
+        GrpcProductClient,
+        GrpcRecommendationClient,
+        GrpcStrategyClient,
+    )
+
+    addrs = addrs or {}
+
+    def addr(name: str, default: str) -> str:
+        return addrs.get(name, default)
+
+    return ClientBundle(
+        product=GrpcProductClient(addr("product", settings.product_grpc_addr)),
+        forecast=GrpcForecastClient(addr("forecast", settings.forecast_grpc_addr)),
+        strategy=GrpcStrategyClient(addr("strategy", settings.strategy_grpc_addr)),
+        recommendation=GrpcRecommendationClient(
+            addr("recommendation", settings.pricing_grpc_addr)
+        ),
+        analytics=GrpcAnalyticsClient(addr("analytics", settings.analytics_grpc_addr)),
+        notification=GrpcNotificationClient(
+            addr("notification", settings.notification_grpc_addr)
+        ),
+        market_data=GrpcMarketDataClient(
+            addr("market_data", settings.market_data_grpc_addr)
+        ),
+        auth=GrpcAuthClient(addr("auth", settings.identity_grpc_addr)),
+    )
+
+
 def build_clients(
     settings: Settings,
     transports: dict[str, httpx.BaseTransport] | None = None,
+    grpc_addrs: dict[str, str] | None = None,
 ) -> ClientBundle:
     mode = settings.client_mode.lower()
     if mode == "mock":
         return build_mock_bundle()
     if mode == "http":
         return build_http_bundle(settings, transports)
+    if mode == "grpc":
+        return build_grpc_bundle(settings, grpc_addrs)
     raise ValueError(
         f"Неизвестный режим GATEWAY_CLIENT_MODE={settings.client_mode!r}; "
-        "ожидается 'mock' или 'http'"
+        "ожидается 'mock', 'http' или 'grpc'"
     )

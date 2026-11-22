@@ -9,3 +9,6 @@ PyJWT>=2.8
 redis>=5.0
 fakeredis>=2.20
 pytest>=8.0
+grpcio>=1.62
+grpcio-tools>=1.62
+kafka-python>=2.0

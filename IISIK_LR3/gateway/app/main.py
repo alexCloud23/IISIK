@@ -7,9 +7,15 @@ from shared.errors import DomainError
 
 from .clients.factory import build_clients
 from .config import settings
+from .events import KafkaEventPublisher
 from .schema.schema import schema
 
 clients = build_clients(settings)
+publisher = (
+    KafkaEventPublisher(settings.kafka_bootstrap_servers)
+    if settings.events_backend.lower() == "kafka"
+    else None
+)
 
 
 async def context_getter(request: Request) -> dict[str, object]:
@@ -22,7 +28,13 @@ async def context_getter(request: Request) -> dict[str, object]:
             user = clients.auth.introspect(token)
         except DomainError:
             user = None
-    return {"clients": clients, "cache": {}, "user": user, "token": token}
+    return {
+        "clients": clients,
+        "cache": {},
+        "user": user,
+        "token": token,
+        "publisher": publisher,
+    }
 
 
 graphql_app = GraphQLRouter(

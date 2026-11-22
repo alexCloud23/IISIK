@@ -12,6 +12,9 @@ class Settings(BaseSettings):
 
     service_name: str = "pricing"
     port: int = 8006
+    grpc_port: int = 50056
+    forecast_provider: str = "grpc"
+    forecast_grpc_addr: str = "127.0.0.1:50054"
     database_url: str = f"sqlite:///{(BASE_DIR / 'data' / 'pricing.db').as_posix()}"
 
 

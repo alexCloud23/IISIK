@@ -18,6 +18,18 @@ class Settings(BaseSettings):
     analytics_service_url: str = "http://127.0.0.1:8007"
     notification_service_url: str = "http://127.0.0.1:8008"
 
+    identity_grpc_addr: str = "127.0.0.1:50051"
+    product_grpc_addr: str = "127.0.0.1:50052"
+    market_data_grpc_addr: str = "127.0.0.1:50053"
+    forecast_grpc_addr: str = "127.0.0.1:50054"
+    strategy_grpc_addr: str = "127.0.0.1:50055"
+    pricing_grpc_addr: str = "127.0.0.1:50056"
+    analytics_grpc_addr: str = "127.0.0.1:50057"
+    notification_grpc_addr: str = "127.0.0.1:50058"
+
+    events_backend: str = "kafka"
+    kafka_bootstrap_servers: str = "127.0.0.1:9092"
+
     request_timeout: float = 2.0
 
 

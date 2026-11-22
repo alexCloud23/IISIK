@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package forecast;
+
+service ForecastService {
+  rpc ListForecasts(ListForecastsRequest) returns (ListForecastsResponse);
+  rpc GetForecast(GetForecastRequest) returns (GetForecastResponse);
+  rpc GenerateForecast(GenerateForecastRequest) returns (Forecast);
+}
+
+message Forecast {
+  string id = 1;
+  string product_id = 2;
+  string period_start = 3;
+  string period_end = 4;
+  string predicted_demand = 5;
+  optional string confidence = 6;
+  string model_version = 7;
+  string created_at = 8;
+}
+
+message ListForecastsRequest {
+  optional string product_id = 1;
+}
+
+message ListForecastsResponse {
+  repeated Forecast forecasts = 1;
+}
+
+message GetForecastRequest {
+  string id = 1;
+}
+
+message GetForecastResponse {
+  optional Forecast forecast = 1;
+}
+
+message SalePoint {
+  int32 quantity = 1;
+  string sold_at = 2;
+}
+
+message GenerateForecastRequest {
+  string product_id = 1;
+  int32 period_days = 2;
+  repeated SalePoint sales = 3;
+}

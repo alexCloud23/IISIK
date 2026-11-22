@@ -1,0 +1,521 @@
+{
+  "info": {
+    "name": "IISIK_LR6",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "ЛР6: gRPC + Kafka. Перед запуском: docker compose up -d (redis + kafka), python scripts/seed_all.py, python scripts/run_all.py --mode grpc. Gateway ходит в сервисы по gRPC (порты 50051-50058), события уведомлений идут через Kafka (топик notification.events) в notification_service."
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000/graphql"
+    },
+    {
+      "key": "analyst_token",
+      "value": ""
+    },
+    {
+      "key": "manager_token",
+      "value": ""
+    },
+    {
+      "key": "p1",
+      "value": "20000000-0000-4000-8000-000000000001"
+    },
+    {
+      "key": "rec_id",
+      "value": ""
+    },
+    {
+      "key": "recommended_price",
+      "value": ""
+    },
+    {
+      "key": "unread_before",
+      "value": "0"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Вход",
+      "item": [
+        {
+          "name": "login analyst",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.collectionVariables.set('analyst_token', body.data.login.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { login(email: \"analyst@example.com\", password: \"analyst\") { token user { email roles } } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "login manager",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.collectionVariables.set('manager_token', body.data.login.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { login(email: \"manager@example.com\", password: \"manager\") { token user { email roles } } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "unread перед сценарием",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('unread_before', String(body.data.unreadNotificationsCount));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": { "query": "query { unreadNotificationsCount }" }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Бизнес-сценарий через gRPC",
+      "item": [
+        {
+          "name": "products через gRPC",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('товары получены по gRPC', () => pm.expect(body.data.products.length).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": { "query": "query { products { id name } }" }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "generateDemandForecast (gateway → forecast gRPC)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('прогноз сформирован', () => pm.expect(body.data.generateDemandForecast.predictedDemand).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { generateDemandForecast(productId: \"{{p1}}\", periodDays: 7) { id predictedDemand confidence } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "analyzeCompetitorStrategy (gateway → strategy gRPC)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('стратегия определена', () => pm.expect(body.data.analyzeCompetitorStrategy.strategyType).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { analyzeCompetitorStrategy(productId: \"{{p1}}\") { id strategyType competitorPrice } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "generatePriceRecommendation (pricing → forecast gRPC внутри)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('статус NEW', () => pm.expect(body.data.generatePriceRecommendation.status).to.eql('NEW'));",
+                  "pm.collectionVariables.set('rec_id', body.data.generatePriceRecommendation.id);",
+                  "pm.collectionVariables.set('recommended_price', String(body.data.generatePriceRecommendation.recommendedPrice));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{manager_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { generatePriceRecommendation(productId: \"{{p1}}\") { id status recommendedPrice } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "decideRecommendation ACCEPTED (product price update по gRPC)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('статус ACCEPTED', () => pm.expect(body.data.decideRecommendation.status).to.eql('ACCEPTED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{manager_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { decideRecommendation(id: \"{{rec_id}}\", decision: ACCEPTED) { id status } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "цена товара обновлена",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "const expected = Number(pm.collectionVariables.get('recommended_price'));",
+                  "pm.test('currentPrice = recommendedPrice', () => pm.expect(body.data.product.currentPrice).to.eql(expected));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { product(id: \"{{p1}}\") { id currentPrice } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "runAnalytics (market_data + forecast + pricing → analytics gRPC)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('тип SALES_SUMMARY', () => pm.expect(body.data.runAnalytics.analysisType).to.eql('SALES_SUMMARY'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { runAnalytics(productId: \"{{p1}}\") { id analysisType } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Kafka → notification_service",
+      "item": [
+        {
+          "name": "пауза — дождаться consumer (4 с)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["setTimeout(() => {}, 4000);"]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('gateway жив', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": {
+              "raw": "http://127.0.0.1:8000/health",
+              "host": ["http://127.0.0.1:8000/health"]
+            }
+          }
+        },
+        {
+          "name": "unread вырос на 5 — события прошли через Kafka",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "const before = Number(pm.collectionVariables.get('unread_before'));",
+                  "pm.test('unread = before + 5', () => pm.expect(body.data.unreadNotificationsCount).to.eql(before + 5));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": { "query": "query { unreadNotificationsCount }" }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "уведомления содержат все типы событий",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "const types = body.data.notifications.map(n => n.notificationType);",
+                  "['FORECAST_READY','STRATEGY_ANALYZED','RECOMMENDATION_CREATED','DECISION_ACCEPTED','ANALYTICS_READY'].forEach(t => {",
+                  "  pm.test('есть событие ' + t, () => pm.expect(types).to.include(t));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "query { notifications { id notificationType isRead } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Сервисы напрямую (sanity)",
+      "item": [
+        {
+          "name": "product /health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": {
+              "raw": "http://127.0.0.1:8002/health",
+              "host": ["http://127.0.0.1:8002/health"]
+            }
+          }
+        },
+        {
+          "name": "pricing /health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": {
+              "raw": "http://127.0.0.1:8006/health",
+              "host": ["http://127.0.0.1:8006/health"]
+            }
+          }
+        },
+        {
+          "name": "notification /health",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": {
+              "raw": "http://127.0.0.1:8008/health",
+              "host": ["http://127.0.0.1:8008/health"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
