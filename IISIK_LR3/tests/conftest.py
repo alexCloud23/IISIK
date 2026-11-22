@@ -22,6 +22,7 @@ for _prefix, _name in (
     )
 
 os.environ.setdefault("IDENTITY_REDIS_URL", "fakeredis://")
+os.environ.setdefault("GATEWAY_REDIS_URL", "fakeredis://")
 os.environ.setdefault("PRICING_FORECAST_PROVIDER", "mock")
 os.environ.setdefault("NOTIFICATION_KAFKA_ENABLED", "false")
 

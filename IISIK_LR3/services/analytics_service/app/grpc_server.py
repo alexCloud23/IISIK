@@ -10,6 +10,7 @@ import shared.protogen
 import analytics_pb2
 import analytics_pb2_grpc
 from shared.grpc_errors import grpc_error_boundary
+from shared.grpc_logging import LoggingServerInterceptor
 
 from . import service
 from .db import SessionLocal
@@ -74,7 +75,10 @@ class AnalyticsGrpcService(analytics_pb2_grpc.AnalyticsServiceServicer):
 
 
 def start_grpc_server(port: int) -> grpc.Server:
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=4),
+        interceptors=(LoggingServerInterceptor(),),
+    )
     analytics_pb2_grpc.add_AnalyticsServiceServicer_to_server(
         AnalyticsGrpcService(), server
     )

@@ -4,6 +4,8 @@ import json
 import logging
 import threading
 
+from shared.resilience import call_with_retry
+
 from . import service
 from .db import SessionLocal
 from .schemas import NotificationCreateDTO
@@ -50,9 +52,24 @@ def _consume_loop(bootstrap_servers: str, stop_event: threading.Event) -> None:
                 for messages in records.values():
                     for message in messages:
                         try:
-                            _handle_event(message.value)
+                            call_with_retry(
+                                lambda: _handle_event(message.value),
+                                label=f"consume {message.topic} offset={message.offset}",
+                                attempts=3,
+                                backoff=1.0,
+                                retryable=lambda exc: True,
+                            )
                         except Exception:
-                            logger.exception("Ошибка обработки события %s", message.value)
+                            logger.exception(
+                                "Сообщение %s пропущено после 3 попыток", message.value
+                            )
+                        else:
+                            logger.info(
+                                "Kafka: событие %s обработано (%s offset=%d)",
+                                message.value.get("notification_type"),
+                                message.topic,
+                                message.offset,
+                            )
         finally:
             consumer.close()
 

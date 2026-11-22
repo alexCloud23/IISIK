@@ -9,6 +9,7 @@ import shared.protogen
 import pricing_pb2
 import pricing_pb2_grpc
 from shared.grpc_errors import grpc_error_boundary
+from shared.grpc_logging import LoggingServerInterceptor
 
 from . import service
 from .db import SessionLocal
@@ -95,7 +96,10 @@ class PricingGrpcService(pricing_pb2_grpc.PricingServiceServicer):
 
 
 def start_grpc_server(port: int) -> grpc.Server:
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=4),
+        interceptors=(LoggingServerInterceptor(),),
+    )
     pricing_pb2_grpc.add_PricingServiceServicer_to_server(
         PricingGrpcService(), server
     )

@@ -10,6 +10,7 @@ import shared.protogen
 import forecast_pb2
 import forecast_pb2_grpc
 from shared.grpc_errors import grpc_error_boundary
+from shared.grpc_logging import LoggingServerInterceptor
 
 from . import service
 from .db import SessionLocal
@@ -67,7 +68,10 @@ class ForecastGrpcService(forecast_pb2_grpc.ForecastServiceServicer):
 
 
 def start_grpc_server(port: int) -> grpc.Server:
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=4),
+        interceptors=(LoggingServerInterceptor(),),
+    )
     forecast_pb2_grpc.add_ForecastServiceServicer_to_server(
         ForecastGrpcService(), server
     )

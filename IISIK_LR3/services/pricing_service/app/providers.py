@@ -10,6 +10,8 @@ import shared.protogen
 import forecast_pb2
 import forecast_pb2_grpc
 from fixtures.forecast import FORECASTS
+from shared.errors import UpstreamUnavailableError
+from shared.resilience import call_with_retry
 
 from .config import settings
 from .schemas import ForecastRefDTO
@@ -40,18 +42,27 @@ class MockForecastProvider:
 
 class GrpcForecastProvider:
     def __init__(self, addr: str) -> None:
+        self._addr = addr
         self._channel = grpc.insecure_channel(addr)
         self._stub = forecast_pb2_grpc.ForecastServiceStub(self._channel)
 
     def get_forecast(self, forecast_id: str) -> ForecastRefDTO | None:
         try:
-            response = self._stub.GetForecast(
-                forecast_pb2.GetForecastRequest(id=forecast_id)
+            response = call_with_retry(
+                lambda: self._stub.GetForecast(
+                    forecast_pb2.GetForecastRequest(id=forecast_id),
+                    timeout=settings.forecast_timeout,
+                ),
+                label=f"{self._addr} GetForecast",
+                attempts=settings.forecast_retry_attempts,
+                backoff=settings.retry_backoff,
             )
         except grpc.RpcError as exc:
             if exc.code() == grpc.StatusCode.NOT_FOUND:
                 return None
-            raise
+            raise UpstreamUnavailableError(
+                f"Сервис прогнозов {self._addr} недоступен: {exc.code().name}"
+            ) from exc
         if not response.HasField("forecast"):
             return None
         msg = response.forecast

@@ -8,6 +8,7 @@ import shared.protogen
 import notification_pb2
 import notification_pb2_grpc
 from shared.grpc_errors import grpc_error_boundary
+from shared.grpc_logging import LoggingServerInterceptor
 
 from . import service
 from .db import SessionLocal
@@ -84,7 +85,10 @@ class NotificationGrpcService(notification_pb2_grpc.NotificationServiceServicer)
 
 
 def start_grpc_server(port: int) -> grpc.Server:
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=4),
+        interceptors=(LoggingServerInterceptor(),),
+    )
     notification_pb2_grpc.add_NotificationServiceServicer_to_server(
         NotificationGrpcService(), server
     )

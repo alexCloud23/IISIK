@@ -86,13 +86,14 @@ def test_grpc_clients_do_not_import_fixtures():
 
 
 def test_redis_only_in_identity_service():
+    allowed = {"identity_service", "gateway", "tests"}
     offenders = []
     for f in python_files("gateway") + python_files("services") + python_files("shared"):
         if "redis" not in imports_of(f):
             continue
-        if "identity_service" not in f.parts:
+        if not allowed & set(f.parts):
             offenders.append(str(f))
-    assert not offenders, f"redis используется вне identity_service: {offenders}"
+    assert not offenders, f"redis используется вне identity_service/gateway: {offenders}"
 
 
 def test_gateway_uses_protocol_clients():

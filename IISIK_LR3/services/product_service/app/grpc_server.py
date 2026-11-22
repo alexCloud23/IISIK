@@ -9,6 +9,7 @@ import shared.protogen
 import product_pb2
 import product_pb2_grpc
 from shared.grpc_errors import grpc_error_boundary
+from shared.grpc_logging import LoggingServerInterceptor
 
 from . import service
 from .db import SessionLocal
@@ -90,7 +91,10 @@ def _update_dto(request):
 
 
 def start_grpc_server(port: int) -> grpc.Server:
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=4),
+        interceptors=(LoggingServerInterceptor(),),
+    )
     product_pb2_grpc.add_ProductServiceServicer_to_server(
         ProductGrpcService(), server
     )

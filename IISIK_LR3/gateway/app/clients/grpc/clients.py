@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import time
 from datetime import datetime
 from decimal import Decimal
 from typing import Callable, TypeVar
@@ -26,6 +28,7 @@ import product_pb2_grpc
 import strategy_pb2
 import strategy_pb2_grpc
 from shared.grpc_errors import raise_domain_error
+from shared.resilience import call_with_retry
 
 from ...dto import (
     AnalyticsResultData,
@@ -45,24 +48,57 @@ from ..base import UNSET
 
 T = TypeVar("T")
 
+logger = logging.getLogger(__name__)
+
+
+def _label(method: Callable[..., T], addr: str) -> str:
+    name = getattr(method, "_method", None)
+    return f"{addr} {name.decode() if isinstance(name, bytes) else method}"
+
 
 class GrpcServiceClient:
-    def __init__(self, addr: str) -> None:
+    def __init__(
+        self,
+        addr: str,
+        *,
+        timeout: float = 2.0,
+        retry_attempts: int = 3,
+        retry_backoff: float = 0.2,
+    ) -> None:
         self._addr = addr
+        self._timeout = timeout
+        self._retry_attempts = retry_attempts
+        self._retry_backoff = retry_backoff
         self._channel = grpc.insecure_channel(addr)
 
     def close(self) -> None:
         self._channel.close()
 
+    def _invoke(self, method: Callable[..., T], request) -> T:
+        label = _label(method, self._addr)
+        started = time.perf_counter()
+        try:
+            response = call_with_retry(
+                lambda: method(request, timeout=self._timeout),
+                label=label,
+                attempts=self._retry_attempts,
+                backoff=self._retry_backoff,
+            )
+        except grpc.RpcError as exc:
+            logger.warning("gRPC %s: ошибка %s", label, exc.code().name)
+            raise
+        logger.info("gRPC %s: OK за %.0f мс", label, (time.perf_counter() - started) * 1000)
+        return response
+
     def _call(self, method: Callable[..., T], request) -> T:
         try:
-            return method(request)
+            return self._invoke(method, request)
         except grpc.RpcError as exc:
             raise_domain_error(exc, self._addr)
 
     def _call_optional(self, method: Callable[..., T], request) -> T | None:
         try:
-            return method(request)
+            return self._invoke(method, request)
         except grpc.RpcError as exc:
             if exc.code() == grpc.StatusCode.NOT_FOUND:
                 return None
@@ -194,8 +230,8 @@ def _money(value: Decimal | None) -> str | None:
 
 
 class GrpcProductClient(GrpcServiceClient):
-    def __init__(self, addr: str) -> None:
-        super().__init__(addr)
+    def __init__(self, addr: str, **kwargs) -> None:
+        super().__init__(addr, **kwargs)
         self._stub = product_pb2_grpc.ProductServiceStub(self._channel)
 
     def list_products(
@@ -268,8 +304,8 @@ class GrpcProductClient(GrpcServiceClient):
 
 
 class GrpcForecastClient(GrpcServiceClient):
-    def __init__(self, addr: str) -> None:
-        super().__init__(addr)
+    def __init__(self, addr: str, **kwargs) -> None:
+        super().__init__(addr, **kwargs)
         self._stub = forecast_pb2_grpc.ForecastServiceStub(self._channel)
 
     def list_forecasts(self, product_id: str | None = None) -> list[ForecastData]:
@@ -300,8 +336,8 @@ class GrpcForecastClient(GrpcServiceClient):
 
 
 class GrpcStrategyClient(GrpcServiceClient):
-    def __init__(self, addr: str) -> None:
-        super().__init__(addr)
+    def __init__(self, addr: str, **kwargs) -> None:
+        super().__init__(addr, **kwargs)
         self._stub = strategy_pb2_grpc.StrategyServiceStub(self._channel)
 
     def list_strategies(self, product_id: str | None = None) -> list[StrategyData]:
@@ -334,8 +370,8 @@ class GrpcStrategyClient(GrpcServiceClient):
 
 
 class GrpcRecommendationClient(GrpcServiceClient):
-    def __init__(self, addr: str) -> None:
-        super().__init__(addr)
+    def __init__(self, addr: str, **kwargs) -> None:
+        super().__init__(addr, **kwargs)
         self._stub = pricing_pb2_grpc.PricingServiceStub(self._channel)
 
     def list_recommendations(
@@ -407,8 +443,8 @@ class GrpcRecommendationClient(GrpcServiceClient):
 
 
 class GrpcAnalyticsClient(GrpcServiceClient):
-    def __init__(self, addr: str) -> None:
-        super().__init__(addr)
+    def __init__(self, addr: str, **kwargs) -> None:
+        super().__init__(addr, **kwargs)
         self._stub = analytics_pb2_grpc.AnalyticsServiceStub(self._channel)
 
     def list_results(
@@ -446,8 +482,8 @@ class GrpcAnalyticsClient(GrpcServiceClient):
 
 
 class GrpcNotificationClient(GrpcServiceClient):
-    def __init__(self, addr: str) -> None:
-        super().__init__(addr)
+    def __init__(self, addr: str, **kwargs) -> None:
+        super().__init__(addr, **kwargs)
         self._stub = notification_pb2_grpc.NotificationServiceStub(self._channel)
 
     def list_notifications(
@@ -501,8 +537,8 @@ class GrpcNotificationClient(GrpcServiceClient):
 
 
 class GrpcMarketDataClient(GrpcServiceClient):
-    def __init__(self, addr: str) -> None:
-        super().__init__(addr)
+    def __init__(self, addr: str, **kwargs) -> None:
+        super().__init__(addr, **kwargs)
         self._stub = market_data_pb2_grpc.MarketDataServiceStub(self._channel)
 
     def sales_summary(self, product_id: str) -> SalesSummaryData:
@@ -539,8 +575,8 @@ class GrpcMarketDataClient(GrpcServiceClient):
 
 
 class GrpcAuthClient(GrpcServiceClient):
-    def __init__(self, addr: str) -> None:
-        super().__init__(addr)
+    def __init__(self, addr: str, **kwargs) -> None:
+        super().__init__(addr, **kwargs)
         self._stub = identity_pb2_grpc.IdentityServiceStub(self._channel)
 
     def login(self, email: str, password: str) -> AuthPayloadData:

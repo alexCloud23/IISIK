@@ -8,6 +8,7 @@ import shared.protogen
 import market_data_pb2
 import market_data_pb2_grpc
 from shared.grpc_errors import grpc_error_boundary
+from shared.grpc_logging import LoggingServerInterceptor
 
 from . import service
 from .db import SessionLocal
@@ -71,7 +72,10 @@ class MarketDataGrpcService(market_data_pb2_grpc.MarketDataServiceServicer):
 
 
 def start_grpc_server(port: int) -> grpc.Server:
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=4),
+        interceptors=(LoggingServerInterceptor(),),
+    )
     market_data_pb2_grpc.add_MarketDataServiceServicer_to_server(
         MarketDataGrpcService(), server
     )

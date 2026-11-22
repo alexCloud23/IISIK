@@ -13,6 +13,7 @@ from fixtures.pricing import RECOMMENDATIONS
 from fixtures.product import PRODUCTS
 from fixtures.strategy import STRATEGIES
 
+from ..cache import RedisCache
 from ..config import Settings
 from ..dto import (
     AnalyticsResultData,
@@ -34,6 +35,7 @@ from .base import (
     RecommendationClient,
     StrategyClient,
 )
+from .cached import CachedProductClient
 from .http import (
     HttpAnalyticsClient,
     HttpAuthClient,
@@ -111,6 +113,12 @@ def build_mock_bundle() -> ClientBundle:
     )
 
 
+def _cached_product(client: ProductClient, settings: Settings) -> ProductClient:
+    return CachedProductClient(
+        client, RedisCache(settings.redis_url, settings.cache_ttl_seconds)
+    )
+
+
 def build_http_bundle(
     settings: Settings,
     transports: dict[str, httpx.BaseTransport] | None = None,
@@ -120,10 +128,17 @@ def build_http_bundle(
     def transport(name: str) -> Any:
         return transports.get(name)
 
-    common = {"timeout": settings.request_timeout}
+    common = {
+        "timeout": settings.request_timeout,
+        "retry_attempts": settings.http_retry_attempts,
+        "retry_backoff": settings.retry_backoff,
+    }
     return ClientBundle(
-        product=HttpProductClient(
-            settings.product_service_url, transport=transport("product"), **common
+        product=_cached_product(
+            HttpProductClient(
+                settings.product_service_url, transport=transport("product"), **common
+            ),
+            settings,
         ),
         forecast=HttpForecastClient(
             settings.forecast_service_url, transport=transport("forecast"), **common
@@ -174,21 +189,31 @@ def build_grpc_bundle(
     def addr(name: str, default: str) -> str:
         return addrs.get(name, default)
 
+    common = {
+        "timeout": settings.grpc_timeout,
+        "retry_attempts": settings.grpc_retry_attempts,
+        "retry_backoff": settings.retry_backoff,
+    }
     return ClientBundle(
-        product=GrpcProductClient(addr("product", settings.product_grpc_addr)),
-        forecast=GrpcForecastClient(addr("forecast", settings.forecast_grpc_addr)),
-        strategy=GrpcStrategyClient(addr("strategy", settings.strategy_grpc_addr)),
-        recommendation=GrpcRecommendationClient(
-            addr("recommendation", settings.pricing_grpc_addr)
+        product=_cached_product(
+            GrpcProductClient(addr("product", settings.product_grpc_addr), **common),
+            settings,
         ),
-        analytics=GrpcAnalyticsClient(addr("analytics", settings.analytics_grpc_addr)),
+        forecast=GrpcForecastClient(addr("forecast", settings.forecast_grpc_addr), **common),
+        strategy=GrpcStrategyClient(addr("strategy", settings.strategy_grpc_addr), **common),
+        recommendation=GrpcRecommendationClient(
+            addr("recommendation", settings.pricing_grpc_addr), **common
+        ),
+        analytics=GrpcAnalyticsClient(
+            addr("analytics", settings.analytics_grpc_addr), **common
+        ),
         notification=GrpcNotificationClient(
-            addr("notification", settings.notification_grpc_addr)
+            addr("notification", settings.notification_grpc_addr), **common
         ),
         market_data=GrpcMarketDataClient(
-            addr("market_data", settings.market_data_grpc_addr)
+            addr("market_data", settings.market_data_grpc_addr), **common
         ),
-        auth=GrpcAuthClient(addr("auth", settings.identity_grpc_addr)),
+        auth=GrpcAuthClient(addr("auth", settings.identity_grpc_addr), **common),
     )
 
 

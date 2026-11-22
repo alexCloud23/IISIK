@@ -8,6 +8,7 @@ import shared.protogen
 import identity_pb2
 import identity_pb2_grpc
 from shared.grpc_errors import grpc_error_boundary
+from shared.grpc_logging import LoggingServerInterceptor
 
 from . import auth_service
 from .db import SessionLocal
@@ -59,7 +60,10 @@ class IdentityGrpcService(identity_pb2_grpc.IdentityServiceServicer):
 
 
 def start_grpc_server(port: int) -> grpc.Server:
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=4),
+        interceptors=(LoggingServerInterceptor(),),
+    )
     identity_pb2_grpc.add_IdentityServiceServicer_to_server(
         IdentityGrpcService(), server
     )

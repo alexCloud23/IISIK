@@ -26,6 +26,7 @@ _TO_GRPC: dict[type[DomainError], grpc.StatusCode] = {
     InvalidOperationError: grpc.StatusCode.FAILED_PRECONDITION,
     UnauthorizedError: grpc.StatusCode.UNAUTHENTICATED,
     ForbiddenError: grpc.StatusCode.PERMISSION_DENIED,
+    UpstreamUnavailableError: grpc.StatusCode.UNAVAILABLE,
 }
 
 _BY_CODE: dict[str, type[DomainError]] = {
