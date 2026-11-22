@@ -10,6 +10,7 @@ import shared.protogen
 import strategy_pb2
 import strategy_pb2_grpc
 from shared.grpc_errors import grpc_error_boundary
+from shared.grpc_logging import LoggingServerInterceptor
 
 from . import service
 from .db import SessionLocal
@@ -73,7 +74,10 @@ class StrategyGrpcService(strategy_pb2_grpc.StrategyServiceServicer):
 
 
 def start_grpc_server(port: int) -> grpc.Server:
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+    server = grpc.server(
+        futures.ThreadPoolExecutor(max_workers=4),
+        interceptors=(LoggingServerInterceptor(),),
+    )
     strategy_pb2_grpc.add_StrategyServiceServicer_to_server(
         StrategyGrpcService(), server
     )

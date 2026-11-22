@@ -4,9 +4,12 @@ from fastapi import FastAPI, Request
 from strawberry.fastapi import GraphQLRouter
 
 from shared.errors import DomainError
+from shared.logging import setup_logging
 
 from .clients.factory import build_clients
 from .config import settings
+
+setup_logging("gateway")
 from .events import KafkaEventPublisher
 from .schema.schema import schema
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import time
 from decimal import Decimal
 from typing import Any, NoReturn
 
@@ -16,6 +18,7 @@ from shared.errors import (
     UnauthorizedError,
     UpstreamUnavailableError,
 )
+from shared.resilience import call_with_retry
 
 from ...dto import (
     AnalyticsResultData,
@@ -32,6 +35,19 @@ from ...dto import (
     StrategyData,
 )
 from ..base import UNSET
+
+logger = logging.getLogger(__name__)
+
+
+class _RetryableStatus(Exception):
+    def __init__(self, response: httpx.Response) -> None:
+        super().__init__(f"HTTP {response.status_code}")
+        self.response = response
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    return isinstance(exc, (httpx.TransportError, _RetryableStatus))
+
 
 _ERROR_CLASSES: dict[str, type[DomainError]] = {
     NotFoundError.code: NotFoundError,
@@ -112,24 +128,55 @@ class HttpServiceClient:
         base_url: str,
         timeout: float = 2.0,
         transport: httpx.BaseTransport | None = None,
+        retry_attempts: int = 2,
+        retry_backoff: float = 0.2,
     ) -> None:
         self._client = httpx.Client(
             base_url=base_url, timeout=timeout, transport=transport
         )
+        self._retry_attempts = retry_attempts
+        self._retry_backoff = retry_backoff
 
     def close(self) -> None:
         self._client.close()
+
+    def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        label = f"HTTP {method} {self._client.base_url}{path}"
+        started = time.perf_counter()
+
+        def attempt() -> httpx.Response:
+            response = self._client.request(method, path, **kwargs)
+            if response.status_code >= 500:
+                raise _RetryableStatus(response)
+            return response
+
+        try:
+            response = call_with_retry(
+                attempt,
+                label=label,
+                attempts=self._retry_attempts,
+                backoff=self._retry_backoff,
+                retryable=_is_retryable,
+            )
+        except _RetryableStatus as exc:
+            return exc.response
+        except httpx.HTTPError as exc:
+            raise UpstreamUnavailableError(
+                f"Сервис {self._client.base_url} недоступен: {exc.__class__.__name__}"
+            ) from exc
+        logger.info(
+            "HTTP %s: %d за %.0f мс",
+            label,
+            response.status_code,
+            (time.perf_counter() - started) * 1000,
+        )
+        return response
 
     def _get(
         self, path: str, params: dict[str, Any] | None = None
     ) -> httpx.Response | None:
         filtered = {key: value for key, value in (params or {}).items() if value is not None}
-        try:
-            response = self._client.get(path, params=filtered or None)
-        except httpx.HTTPError as exc:
-            raise UpstreamUnavailableError(
-                f"Сервис {self._client.base_url} недоступен: {exc.__class__.__name__}"
-            ) from exc
+        response = self._request("GET", path, params=filtered or None)
 
         if response.status_code == 404:
             return None
@@ -152,14 +199,9 @@ class HttpServiceClient:
         headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         filtered = {key: value for key, value in (params or {}).items() if value is not None}
-        try:
-            response = self._client.request(
-                method, path, json=json_body, params=filtered or None, headers=headers
-            )
-        except httpx.HTTPError as exc:
-            raise UpstreamUnavailableError(
-                f"Сервис {self._client.base_url} недоступен: {exc.__class__.__name__}"
-            ) from exc
+        response = self._request(
+            method, path, json=json_body, params=filtered or None, headers=headers
+        )
 
         if response.status_code == 404:
             raise NotFoundError(

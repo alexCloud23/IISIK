@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     kafka_bootstrap_servers: str = "127.0.0.1:9092"
 
     request_timeout: float = 2.0
+    http_retry_attempts: int = 2
+    grpc_timeout: float = 2.0
+    grpc_retry_attempts: int = 3
+    retry_backoff: float = 0.2
+
+    redis_url: str = "redis://127.0.0.1:6379/0"
+    cache_ttl_seconds: int = 60
 
 
 settings = Settings()

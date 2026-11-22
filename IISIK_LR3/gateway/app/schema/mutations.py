@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 
 import strawberry
@@ -42,6 +43,9 @@ def _money_text(value: Decimal) -> str:
     return f"{value:.2f}"
 
 
+logger = logging.getLogger(__name__)
+
+
 def _notify(info: Info, clients, **kwargs) -> None:
     try:
         publisher = (
@@ -53,11 +57,19 @@ def _notify(info: Info, clients, **kwargs) -> None:
             try:
                 publisher.publish(kwargs)
                 return
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Kafka недоступна, событие %s уходит напрямую в notification-service: %s",
+                    kwargs.get("notification_type"),
+                    exc,
+                )
         clients.notification.create_notification(**kwargs)
-    except DomainError:
-        pass
+    except DomainError as exc:
+        logger.warning(
+            "Уведомление %s не доставлено: %s",
+            kwargs.get("notification_type"),
+            exc.message,
+        )
 
 
 @strawberry.type

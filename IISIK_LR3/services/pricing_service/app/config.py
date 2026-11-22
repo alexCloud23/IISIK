@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     grpc_port: int = 50056
     forecast_provider: str = "grpc"
     forecast_grpc_addr: str = "127.0.0.1:50054"
+    forecast_timeout: float = 2.0
+    forecast_retry_attempts: int = 3
+    retry_backoff: float = 0.2
     database_url: str = f"sqlite:///{(BASE_DIR / 'data' / 'pricing.db').as_posix()}"
 
 

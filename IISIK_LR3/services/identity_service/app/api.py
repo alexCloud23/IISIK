@@ -10,7 +10,11 @@ from sqlalchemy.orm import Session
 from shared.errors import DomainError, UnauthorizedError
 
 from . import auth_service, service
+from shared.logging import setup_logging
+
 from .config import settings
+
+setup_logging(settings.service_name)
 from .db import engine, get_session
 from .grpc_server import start_grpc_server
 from .models import Base

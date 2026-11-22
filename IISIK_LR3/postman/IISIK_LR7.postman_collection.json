@@ -1,0 +1,601 @@
+{
+  "info": {
+    "name": "IISIK_LR7",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "ЛР7: надёжность и оптимизация. Перед запуском: docker compose up -d (redis + kafka), python scripts/seed_all.py, python scripts/run_all.py --mode grpc. Папка 1 — стабильный сценарий (timeout/retry прозрачны для клиента). Папка 2 — кеш Redis: второй запрос товара обслуживается из кеша (в логах gateway 'Кеш: товар ... получен из Redis', ключ product:{id} в redis-cli). Папка 3 — устойчивость: шаги с остановкой сервисов выполняются вручную между запросами."
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000/graphql" },
+    { "key": "analyst_token", "value": "" },
+    { "key": "manager_token", "value": "" },
+    { "key": "p1", "value": "20000000-0000-4000-8000-000000000001" },
+    { "key": "rec_id", "value": "" },
+    { "key": "unread_before", "value": "0" },
+    { "key": "cache_first_ms", "value": "0" }
+  ],
+  "item": [
+    {
+      "name": "0. Вход",
+      "item": [
+        {
+          "name": "login analyst",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.collectionVariables.set('analyst_token', body.data.login.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { login(email: \"analyst@example.com\", password: \"analyst\") { token user { email roles } } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "login manager",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.collectionVariables.set('manager_token', body.data.login.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": { "type": "noauth" },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { login(email: \"manager@example.com\", password: \"manager\") { token user { email roles } } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "unread перед сценарием",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('unread_before', String(body.data.unreadNotificationsCount));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": { "query": "query { unreadNotificationsCount }" }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Стабильный сценарий",
+      "item": [
+        {
+          "name": "products",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('товары получены', () => pm.expect(body.data.products.length).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": { "query": "query { products { id name } }" }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "generateDemandForecast",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('прогноз сформирован', () => pm.expect(body.data.generateDemandForecast.predictedDemand).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { generateDemandForecast(productId: \"{{p1}}\", periodDays: 7) { id predictedDemand confidence } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "analyzeCompetitorStrategy",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('стратегия определена', () => pm.expect(body.data.analyzeCompetitorStrategy.strategyType).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { analyzeCompetitorStrategy(productId: \"{{p1}}\") { id strategyType competitorPrice } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "generatePriceRecommendation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('статус NEW', () => pm.expect(body.data.generatePriceRecommendation.status).to.eql('NEW'));",
+                  "pm.collectionVariables.set('rec_id', body.data.generatePriceRecommendation.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{manager_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { generatePriceRecommendation(productId: \"{{p1}}\") { id status recommendedPrice } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "decideRecommendation ACCEPTED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('статус ACCEPTED', () => pm.expect(body.data.decideRecommendation.status).to.eql('ACCEPTED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{manager_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { decideRecommendation(id: \"{{rec_id}}\", decision: ACCEPTED) { id status } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "runAnalytics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('тип SALES_SUMMARY', () => pm.expect(body.data.runAnalytics.analysisType).to.eql('SALES_SUMMARY'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { runAnalytics(productId: \"{{p1}}\") { id analysisType } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "пауза — дождаться consumer (4 с)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["setTimeout(() => {}, 4000);"]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('gateway жив', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "auth": { "type": "noauth" },
+            "url": {
+              "raw": "http://127.0.0.1:8000/health",
+              "host": ["http://127.0.0.1:8000/health"]
+            }
+          }
+        },
+        {
+          "name": "unread вырос на 5 — события прошли через Kafka",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "const before = Number(pm.collectionVariables.get('unread_before'));",
+                  "pm.test('unread = before + 5', () => pm.expect(body.data.unreadNotificationsCount).to.eql(before + 5));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": { "query": "query { unreadNotificationsCount }" }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Кеш Redis",
+      "description": "Первый запрос товара идёт в product-service по gRPC и кладёт результат в Redis (ключ product:{{p1}}, TTL 60 с). Второй обслуживается из кеша. Дополнительная проверка: в логах gateway строка 'Кеш: товар ... получен из Redis', в Redis: docker exec iisik_lr3-redis-1 redis-cli keys 'product:*'.",
+      "item": [
+        {
+          "name": "product — первый запрос (кеш-промах)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.collectionVariables.set('cache_first_ms', String(pm.response.responseTime));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": { "query": "query { product(id: \"{{p1}}\") { id name currentPrice } }" }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        },
+        {
+          "name": "product — второй запрос (из кеша)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "const first = Number(pm.collectionVariables.get('cache_first_ms'));",
+                  "pm.test('не медленнее первого (+100 мс запас)', () => pm.expect(pm.response.responseTime).to.be.at.most(first + 100));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": { "query": "query { product(id: \"{{p1}}\") { id name currentPrice } }" }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Устойчивость (ручные шаги)",
+      "description": "Шаги с остановкой компонентов выполняются вручную между запросами. Сценарий: 1) выполнить 'products при мёртвом product' и 'notifications при мёртвом product' после остановки product-сервиса; 2) запустить его обратно и выполнить 'products после восстановления'; 3) остановить Kafka (docker stop iisik_lr3-kafka-1) и выполнить 'generatePriceRecommendation при мёртвой Kafka' — мутация пройдёт, уведомление уйдёт напрямую по gRPC (в логах gateway warning о fallback); 4) запустить Kafka и выполнить финальный запрос — событие снова пойдёт через топик.",
+      "item": [
+        {
+          "name": "products при мёртвом product (ПЕРЕД: остановить product-сервис)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK (GraphQL)', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('ошибка UPSTREAM_UNAVAILABLE', () => pm.expect(body.errors[0].extensions.code).to.eql('UPSTREAM_UNAVAILABLE'));",
+                  "pm.test('понятное сообщение', () => pm.expect(body.errors[0].message).to.include('недоступен'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": { "query": "query { products { id name } }" }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] },
+            "description": "Перед запросом остановить product-сервис (убить процесс на порту 8002). Gateway ограничит ожидание timeout'ом и ограниченными retry, затем вернёт доменную ошибку."
+          }
+        },
+        {
+          "name": "notifications при мёртвом product — система живёт",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": { "query": "query { notifications { id notificationType } }" }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] },
+            "description": "Product-сервис всё ещё остановлен, но остальная система работает: сбой одного компонента не останавливает систему."
+          }
+        },
+        {
+          "name": "products после восстановления (ПЕРЕД: запустить product-сервис)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('товары снова доступны', () => pm.expect(body.data.products.length).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{analyst_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": { "query": "query { products { id name } }" }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] },
+            "description": "Запустить product-сервис обратно (python scripts/run_all.py --mode grpc или отдельный uvicorn). Клиенты восстанавливаются без перезапуска gateway."
+          }
+        },
+        {
+          "name": "generatePriceRecommendation при мёртвой Kafka (ПЕРЕД: docker stop iisik_lr3-kafka-1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('статус NEW', () => pm.expect(body.data.generatePriceRecommendation.status).to.eql('NEW'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{manager_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { generatePriceRecommendation(productId: \"{{p1}}\") { id status } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] },
+            "description": "Kafka остановлена. Publish делает 2 ограниченные попытки, затем уведомление уходит напрямую в notification-service по gRPC — бизнес-сценарий завершается успешно (в логах gateway warning 'Kafka недоступна, событие ... уходит напрямую'). Может занять до ~60 с из-за таймаутов соединения."
+          }
+        },
+        {
+          "name": "generatePriceRecommendation после старта Kafka (ПЕРЕД: docker start iisik_lr3-kafka-1)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["setTimeout(() => {}, 10000);"]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('нет ошибок GraphQL', () => pm.expect(body.errors).to.be.undefined);",
+                  "pm.test('статус NEW', () => pm.expect(body.data.generatePriceRecommendation.status).to.eql('NEW'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{manager_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "graphql",
+              "graphql": {
+                "query": "mutation { generatePriceRecommendation(productId: \"{{p1}}\") { id status } }"
+              }
+            },
+            "url": { "raw": "{{base_url}}", "host": ["{{base_url}}"] },
+            "description": "Kafka снова запущена (10 с пауза на старт брокера и переподключение consumer'а). Событие публикуется в топик notification.events, в логах notification-service видно 'событие RECOMMENDATION_CREATED обработано'."
+          }
+        }
+      ]
+    }
+  ]
+}
